@@ -1429,7 +1429,7 @@ function showData(muniName) {
 
   // ── Header ──
   $('muniName').textContent = d.name || muniName;
-  const fyEl=$('muniFY'); if(ds.fiscal_year||ds.label){fyEl.textContent=ds.fiscal_year?ds.fiscal_year+'年度':ds.label;fyEl.style.display='';}else fyEl.style.display='none';
+  const fyEl=$('muniFY'); if(ds.fiscal_year||ds.label){fyEl.textContent=ds.fiscal_year?(ds.fiscal_year.endsWith('年度')?ds.fiscal_year:ds.fiscal_year+'年度'):ds.label;fyEl.style.display='';}else fyEl.style.display='none';
   const tyEl=$('muniType'); if(d.mtype){tyEl.textContent=d.mtype;tyEl.style.display='';}else tyEl.style.display='none';
 
   const u = unit(d);
@@ -2019,7 +2019,7 @@ function ptRestoreFromURL(){
 // ──────────────────────────────────────────
 function ptFill(d, ds){
   ptSet('pt_muni', d.name||'');
-  ptSet('pt_fy',   ds.fiscal_year ? ds.fiscal_year+'年度' : ds.label||'');
+  ptSet('pt_fy',   ds.fiscal_year ? (ds.fiscal_year.endsWith('年度') ? ds.fiscal_year : ds.fiscal_year+'年度') : ds.label||'');
   ptSet('pt_exp',  d.expenditure!=null ? d.expenditure : '');
 
   if(Array.isArray(d.tax_detail) && d.tax_detail.length){
