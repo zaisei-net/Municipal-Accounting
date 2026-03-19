@@ -1754,12 +1754,24 @@ if (!ADMIN_MODE) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // datasetsを年度降順（令和→平成）でソート
+function fiscalYearToNum(fy) {
+  if (!fy) return 0;
+  const s = String(fy);
+  if (/^\d+$/.test(s.trim())) return parseInt(s);
+  const reiwa = s.match(/令和\s*([元一二三四五六七八九十百\d]+)/);
+  if (reiwa) {
+    const n = reiwa[1] === '元' ? 1 : (parseInt(reiwa[1]) || 1);
+    return 2018 + n;
+  }
+  const heisei = s.match(/平成\s*([０-９\d]+)/);
+  if (heisei) {
+    const n = parseInt(heisei[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
+    return 1988 + n;
+  }
+  return parseInt(s) || 0;
+}
 function sortDatasetsByYear() {
-  datasets.sort((a, b) => {
-    const ya = parseInt(a.fiscal_year) || 0;
-    const yb = parseInt(b.fiscal_year) || 0;
-    return yb - ya;
-  });
+  datasets.sort((a, b) => fiscalYearToNum(b.fiscal_year) - fiscalYearToNum(a.fiscal_year));
 }
 
 // 個別JSONファイルを並列フェッチ（GitHub Pages対応）
