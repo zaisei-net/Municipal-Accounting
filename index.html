@@ -1762,97 +1762,75 @@ function sortDatasetsByYear() {
   });
 }
 
-// サーバー経由で起動されている場合は json フォルダを自動取得
-// ファイル直接開き（file://）の場合はスキップしてBUILTINのまま表示
+// 個別JSONファイルを並列フェッチ（GitHub Pages対応）
+// file://プロトコルでも http(s)://でも動作する
 (async () => {
-  if (window.location.protocol !== 'file:') {
-    const prog = $('loadProgress'), bar = $('loadProgressBar'), lbl = $('loadProgressLabel'), pctEl = $('loadProgressPct');
-    prog.style.display = 'block';
-    bar.style.transition = 'width .15s ease';
-    bar.style.width = '0%';
-    lbl.textContent = 'サーバーからデータを取得中…';
-    if(pctEl) pctEl.textContent = '0%';
+  const JSON_FILES = [
+    'all_datasets_R5.json',
+    'all_datasets_R4.json',
+    'all_datasets_R3.json',
+    'all_datasets_R2.json',
+    'all_datasets_R1.json',
+    'all_datasets_H30.json',
+    'all_datasets_H29.json',
+    'all_datasets_H28.json',
+  ];
 
-    // 不定進捗アニメーション（レスポンス待ち中）
-    let indetermPct = 5;
-    const indetermTimer = setInterval(() => {
-      if (indetermPct < 80) {
-        indetermPct += 1.5;
-        bar.style.width = indetermPct + '%';
-        if(pctEl) pctEl.textContent = Math.round(indetermPct) + '%';
-      }
-    }, 100);
+  const prog = $('loadProgress'), bar = $('loadProgressBar'), lbl = $('loadProgressLabel'), pctEl = $('loadProgressPct');
+  prog.style.display = 'block';
+  bar.style.transition = 'width .15s ease';
+  bar.style.width = '0%';
+  lbl.textContent = 'データを読み込み中…';
+  if(pctEl) pctEl.textContent = '0%';
 
-    try {
-      const res = await fetch('/api/datasets');
-      if (res.ok) {
-        const contentLength = res.headers.get('Content-Length');
-        let serverDatasets;
+  // index.html と同じ階層の json/ フォルダを参照
+  const baseUrl = (() => {
+    const loc = window.location.href;
+    return loc.substring(0, loc.lastIndexOf('/') + 1) + 'json/';
+  })();
 
-        if (contentLength && res.body) {
-          // Content-Length がある場合：ストリーミングで進捗を表示
-          clearInterval(indetermTimer);
-          const total = parseInt(contentLength);
-          const reader = res.body.getReader();
-          const chunks = [];
-          let received = 0;
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            received += value.length;
-            const pct = Math.min(92, Math.round((received / total) * 95));
-            bar.style.width = pct + '%';
-            if(pctEl) pctEl.textContent = pct + '%';
-            const mbR = (received / 1048576).toFixed(1);
-            const mbT = (total   / 1048576).toFixed(1);
-            lbl.textContent = `${mbR} / ${mbT} MB`;
-          }
-          bar.style.width = '95%';
-          if(pctEl) pctEl.textContent = '95%';
-          lbl.textContent = 'データを解析中…';
-          const all = new Uint8Array(received);
-          let pos = 0;
-          for (const c of chunks) { all.set(c, pos); pos += c.length; }
-          serverDatasets = JSON.parse(new TextDecoder('utf-8').decode(all));
-        } else {
-          // Content-Length なし：通常フェッチ
-          lbl.textContent = 'データを解析中…';
-          serverDatasets = await res.json();
-          clearInterval(indetermTimer);
+  let loaded = 0;
+  const total = JSON_FILES.length;
+
+  const results = await Promise.allSettled(
+    JSON_FILES.map(async fname => {
+      const url = baseUrl + fname;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+      const data = await res.json();
+      loaded++;
+      const pct = Math.round((loaded / total) * 90);
+      bar.style.width = pct + '%';
+      if(pctEl) pctEl.textContent = pct + '%';
+      lbl.textContent = `${loaded} / ${total} ファイル読み込み中…`;
+      return data;
+    })
+  );
+
+  let addedCount = 0;
+  results.forEach(result => {
+    if (result.status === 'fulfilled') {
+      const data = result.value;
+      const items = Array.isArray(data) ? data : [data];
+      items.forEach(ds => {
+        if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+          const existing = datasets.findIndex(d => d.label === ds.label);
+          if (existing >= 0) datasets[existing] = ds;
+          else { datasets.push(ds); addedCount++; }
         }
-
-        if (Array.isArray(serverDatasets) && serverDatasets.length > 0) {
-          serverDatasets.forEach(ds => {
-            if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
-              const existing = datasets.findIndex(d => d.label === ds.label);
-              if (existing >= 0) datasets[existing] = ds;
-              else datasets.push(ds);
-            }
-          });
-          sortDatasetsByYear();
-          activeDs = 0;
-        }
-      }
-    } catch (e) {
-      // サーバーなしの場合は無視（BUILTINデータで動作）
-    } finally {
-      clearInterval(indetermTimer);
-      bar.style.width = '100%';
-      if(pctEl) pctEl.textContent = '100%';
-      lbl.textContent = '読み込み完了';
-      setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 700);
+      });
     }
+  });
+
+  if (addedCount > 0) {
+    sortDatasetsByYear();
+    activeDs = 0;
   }
-  // file://プロトコル時：BUILTINデータをそのまま使用（プログレスバー簡易表示）
-  if (window.location.protocol === 'file:' && datasets.length > 0) {
-    const prog = $('loadProgress'), bar = $('loadProgressBar'), lbl = $('loadProgressLabel'), pctEl = $('loadProgressPct');
-    prog.style.display = 'block';
-    bar.style.width = '100%';
-    if(pctEl) pctEl.textContent = '100%';
-    lbl.textContent = `組み込みデータ ${datasets.length} 件を読み込みました`;
-    setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 1000);
-  }
+
+  bar.style.width = '100%';
+  if(pctEl) pctEl.textContent = '100%';
+  lbl.textContent = addedCount > 0 ? `${datasets.length} 件のデータを読み込みました` : '組み込みデータを使用中';
+  setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
   renderTabs();
   updateDsInfo();
   rebuildDrilldown();
