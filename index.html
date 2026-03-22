@@ -997,19 +997,30 @@ function dsYearKey(ds) { return ds.fiscal_year || ds.label || ''; }
 function dsPrefKey(ds) { return ds.prefecture  || ds.label || ''; }
 
 function formatYear(y) {
-  const n = parseInt(y);
+  if (!y) return y;
+  const s = String(y);
+  const n = parseInt(s);
   if (!isNaN(n) && n >= 2019) return `令和${n - 2018}年度 (${n})`;
   if (!isNaN(n) && n >= 1989) return `平成${n - 1988}年度 (${n})`;
+  // 和暦文字列（令和元年度など）→ 括弧付き西暦を追加
+  const reiwa = s.match(/令和([元一二三四五六七八九十百\d]+)年度/);
+  if (reiwa) {
+    const num = reiwa[1] === '元' ? 1 : parseInt(reiwa[1]);
+    const ad = 2018 + num;
+    return `${s} (${ad})`;
+  }
+  const heisei = s.match(/平成([０-９\d]+)年度/);
+  if (heisei) {
+    const num = parseInt(heisei[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
+    const ad = 1988 + num;
+    return `${s} (${ad})`;
+  }
   return y;
 }
 
 // 年度を降順（新しい順＝令和→平成）でソートする
 function sortYearsDesc(years) {
-  return [...years].sort((a, b) => {
-    const na = parseInt(a), nb = parseInt(b);
-    if (!isNaN(na) && !isNaN(nb)) return nb - na;
-    return String(b).localeCompare(String(a), 'ja');
-  });
+  return [...years].sort((a, b) => fiscalYearToNum(b) - fiscalYearToNum(a));
 }
 
 const PREF_ORDER = [
@@ -1429,7 +1440,7 @@ function showData(muniName) {
 
   // ── Header ──
   $('muniName').textContent = d.name || muniName;
-  const fyEl=$('muniFY'); if(ds.fiscal_year||ds.label){fyEl.textContent=ds.fiscal_year?(ds.fiscal_year.endsWith('年度')?ds.fiscal_year:ds.fiscal_year+'年度'):ds.label;fyEl.style.display='';}else fyEl.style.display='none';
+  const fyEl=$('muniFY'); if(ds.fiscal_year||ds.label){fyEl.textContent=ds.fiscal_year?fyLabel(ds.fiscal_year):ds.label;fyEl.style.display='';}else fyEl.style.display='none';
   const tyEl=$('muniType'); if(d.mtype){tyEl.textContent=d.mtype;tyEl.style.display='';}else tyEl.style.display='none';
 
   const u = unit(d);
@@ -1474,8 +1485,10 @@ function showData(muniName) {
 
   // General finance
   const bodyGF=$('bodyGenFinance'); bodyGF.innerHTML='';
-  [['経常一般財源等',d.regular_general_revenue],['歳入一般財源等',d.total_general_revenue]].forEach(([l,v])=>{ if(v!=null) bodyGF.innerHTML+=makeRow(l,v,'neu',null,null,u); });
-  $('cardGenFinance').style.display = d.regular_general_revenue!=null?'':'none';
+  const rvReg = (typeof d.regular_general_revenue === 'number') ? d.regular_general_revenue : null;
+  const rvTot = (typeof d.total_general_revenue === 'number') ? d.total_general_revenue : null;
+  [['経常一般財源等',rvReg],['歳入一般財源等',rvTot]].forEach(([l,v])=>{ if(v!=null) bodyGF.innerHTML+=makeRow(l,v,'neu',null,null,u); });
+  $('cardGenFinance').style.display = rvReg!=null?'':'none';
 
   // Tax bar
   if (d.revenue && d.local_tax) {
@@ -1753,6 +1766,18 @@ if (!ADMIN_MODE) {
 // INIT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// fiscal_year文字列から「年度」重複を防いで表示用ラベルを返す
+function fyLabel(fy) {
+  if (!fy) return '';
+  const s = String(fy);
+  // すでに「年度」で終わっていればそのまま
+  if (s.endsWith('年度')) return s;
+  // 数字のみ（西暦）の場合
+  const n = parseInt(s);
+  if (!isNaN(n) && n >= 2019) return '令和' + (n - 2018) + '年度';
+  if (!isNaN(n) && n >= 1989) return '平成' + (n - 1988) + '年度';
+  return s + '年度';
+}
 // datasetsを年度降順（令和→平成）でソート
 function fiscalYearToNum(fy) {
   if (!fy) return 0;
@@ -1775,7 +1800,7 @@ function sortDatasetsByYear() {
 }
 
 // 個別JSONファイルを並列フェッチ（GitHub Pages対応）
-// file://プロトコルでも http(s)://でも動作する
+// /api/datasets (node server.js) があればそちら、なければ json/ フォルダから直接fetch
 (async () => {
   const JSON_FILES = [
     'all_datasets_R5.json',
@@ -1795,42 +1820,55 @@ function sortDatasetsByYear() {
   lbl.textContent = 'データを読み込み中…';
   if(pctEl) pctEl.textContent = '0%';
 
-  // index.html と同じ階層の json/ フォルダを参照
-  const baseUrl = (() => {
-    const loc = window.location.href;
-    return loc.substring(0, loc.lastIndexOf('/') + 1) + 'json/';
-  })();
+  // /api/datasets が使えるか試す（node server.js 環境）
+  let allData = null;
+  if (window.location.protocol !== 'file:') {
+    try {
+      const apiRes = await fetch('/api/datasets');
+      if (apiRes.ok) {
+        allData = await apiRes.json();
+        bar.style.width = '90%';
+        if(pctEl) pctEl.textContent = '90%';
+        lbl.textContent = 'データ読み込み完了…';
+      }
+    } catch(e) { /* fallthrough to json/ folder */ }
+  }
 
-  let loaded = 0;
-  const total = JSON_FILES.length;
+  // /api/datasets が使えない場合は json/ フォルダから並列fetch（GitHub Pages環境）
+  if (!allData) {
+    const baseUrl = (() => {
+      const loc = window.location.href;
+      return loc.substring(0, loc.lastIndexOf('/') + 1) + 'json/';
+    })();
 
-  const results = await Promise.allSettled(
-    JSON_FILES.map(async fname => {
-      const url = baseUrl + fname;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
-      const data = await res.json();
-      loaded++;
-      const pct = Math.round((loaded / total) * 90);
-      bar.style.width = pct + '%';
-      if(pctEl) pctEl.textContent = pct + '%';
-      lbl.textContent = `${loaded} / ${total} ファイル読み込み中…`;
-      return data;
-    })
-  );
+    let loaded = 0;
+    const total = JSON_FILES.length;
+
+    const results = await Promise.allSettled(
+      JSON_FILES.map(async fname => {
+        const url = baseUrl + fname;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+        const data = await res.json();
+        loaded++;
+        const pct = Math.round((loaded / total) * 90);
+        bar.style.width = pct + '%';
+        if(pctEl) pctEl.textContent = pct + '%';
+        lbl.textContent = `${loaded} / ${total} ファイル読み込み中…`;
+        return data;
+      })
+    );
+
+    allData = [];
+    results.forEach(r => { if (r.status === 'fulfilled') { const d = r.value; if (Array.isArray(d)) allData.push(...d); else allData.push(d); } });
+  }
 
   let addedCount = 0;
-  results.forEach(result => {
-    if (result.status === 'fulfilled') {
-      const data = result.value;
-      const items = Array.isArray(data) ? data : [data];
-      items.forEach(ds => {
-        if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
-          const existing = datasets.findIndex(d => d.label === ds.label);
-          if (existing >= 0) datasets[existing] = ds;
-          else { datasets.push(ds); addedCount++; }
-        }
-      });
+  (Array.isArray(allData) ? allData : [allData]).forEach(ds => {
+    if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+      const existing = datasets.findIndex(d => d.label === ds.label);
+      if (existing >= 0) datasets[existing] = ds;
+      else { datasets.push(ds); addedCount++; }
     }
   });
 
@@ -2019,7 +2057,7 @@ function ptRestoreFromURL(){
 // ──────────────────────────────────────────
 function ptFill(d, ds){
   ptSet('pt_muni', d.name||'');
-  ptSet('pt_fy',   ds.fiscal_year ? (ds.fiscal_year.endsWith('年度') ? ds.fiscal_year : ds.fiscal_year+'年度') : ds.label||'');
+  ptSet('pt_fy',   ds.fiscal_year ? fyLabel(ds.fiscal_year) : ds.label||'');
   ptSet('pt_exp',  d.expenditure!=null ? d.expenditure : '');
 
   if(Array.isArray(d.tax_detail) && d.tax_detail.length){
