@@ -808,7 +808,9 @@ const KNOWN = new Set([
   'revenue_detail','expenditure_by_nature','expenditure_by_purpose',
   'tax_detail','employees','laspeyres_index','public_enterprises',
   'payout_total','tax_collection',
-  'regular_general_revenue','total_general_revenue','unit'
+  'regular_general_revenue','total_general_revenue','unit',
+  'base_fiscal_demand','base_fiscal_income','standard_tax_revenue',
+  'real_surplus_ratio','pop_juki_r6'
 ]);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1480,8 +1482,16 @@ function showData(muniName) {
 
   // Reserves
   const bodyRes=$('bodyReserves'); bodyRes.innerHTML='';
-  [['財政調整基金',d.reserve_financial_adj],['減債基金',d.reserve_debt_redemption],['特定目的基金',d.reserve_specific],['地方債現在高',d.local_bond_outstanding]].forEach(([l,v])=>{ if(v!=null) bodyRes.innerHTML+=makeRow(l,v,'neu',null,null,u); });
-  $('cardReserves').style.display = [d.reserve_financial_adj,d.local_bond_outstanding].some(v=>v!=null)?'':'none';
+  const revenueForCheck = d.revenue || 0;
+  [['財政調整基金',d.reserve_financial_adj],['減債基金',d.reserve_debt_redemption],['特定目的基金',d.reserve_specific],['地方債現在高',d.local_bond_outstanding]].forEach(([l,v])=>{
+    if(typeof v==='number'){
+      // 歳入総額の0.01%未満かつ100千円未満は異常値の可能性
+      const isSuspect = revenueForCheck > 0 && v < revenueForCheck * 0.0001 && v < 100;
+      const warn = isSuspect ? ' <span title="データ変換バグの可能性あり" style="color:var(--accent2);cursor:help">⚠</span>' : '';
+      bodyRes.innerHTML+=makeRow(l+warn,v,'neu',null,null,u);
+    }
+  });
+  $('cardReserves').style.display = [d.reserve_financial_adj,d.local_bond_outstanding].some(v=>typeof v==='number')?'':'none';
 
   // General finance
   const bodyGF=$('bodyGenFinance'); bodyGF.innerHTML='';
@@ -1559,6 +1569,7 @@ function showData(muniName) {
   const gauges = [
     {key:'fiscal_strength_index',label:'財政力指数',unit:'',max:2,warn:0.5,alert:null,low_is_bad:true},
     {key:'current_expenditure_ratio',label:'経常収支比率',unit:'%',max:100,warn:90,alert:95,low_is_bad:false},
+    {key:'real_surplus_ratio',label:'実質収支比率',unit:'%',max:15,warn:null,alert:null,low_is_bad:false},
     {key:'real_debt_ratio',label:'実質公債費比率',unit:'%',max:25,warn:18,alert:25,low_is_bad:false},
     {key:'future_burden_ratio',label:'将来負担比率',unit:'%',max:350,warn:200,alert:350,low_is_bad:false},
     {key:'debt_service_ratio',label:'公債費負担比率',unit:'%',max:30,warn:15,alert:20,low_is_bad:false},
@@ -1582,14 +1593,9 @@ function showData(muniName) {
 
   // Fiscal extras
   const feg=$('fiscalExtrasGrid'); feg.innerHTML='';
-  [['基準財政収入額',d.standard_fiscal_scale?null:null], // skip – show in separate cards
-  ].forEach(()=>{});
-  const fExtras=[['基準財政収入額','standard_fiscal_revenue'],['基準財政需要額','standard_fiscal_need'],['標準財政規模','standard_fiscal_scale']];
+  const fExtras=[['基準財政収入額','base_fiscal_income'],['基準財政需要額','base_fiscal_demand'],['標準財政規模','standard_fiscal_scale'],['標準税収入額等','standard_tax_revenue']];
   let fExtCount=0;
-  fExtras.forEach(([l,k])=>{ const v=d[k]; if(v!=null){feg.innerHTML+=`<div class="data-card"><div class="dc-head">${l}</div><div class="dr"><span class="dr-val neu">${fmt(v)} ${u}</span></div></div>`;fExtCount++;}});
-  if(d.standard_fiscal_scale!=null && !fExtCount){
-    feg.innerHTML=`<div class="data-card"><div class="dc-head">標準財政規模</div><div class="dr"><span class="dr-val neu">${fmt(d.standard_fiscal_scale)} ${u}</span></div></div>`;fExtCount=1;
-  }
+  fExtras.forEach(([l,k])=>{ const v=d[k]; if(typeof v==='number'){feg.innerHTML+=`<div class="data-card"><div class="dc-head">${l}</div><div class="dr"><span class="dr-val neu">${fmt(v)} ${u}</span></div></div>`;fExtCount++;}});
   $('fiscalExtras').style.display=fExtCount>0?'':'none';
 
   // ── Tax detail ──
@@ -1686,10 +1692,19 @@ function showData(muniName) {
   const extra=Object.keys(d).filter(k=>!KNOWN.has(k));
   $('tab-extra').style.display=extra.length?'':'none';
   const eg=$('extraGrid'); eg.innerHTML='';
+  // 金額フィールド（千円単位）
+  const MONEY_KEYS=new Set(['debt_commit_purchase','debt_commit_guarantee','debt_commit_other','lottery_revenue','land_dev_fund','base_fiscal_demand','base_fiscal_income','standard_tax_revenue','standard_fiscal_scale','standard_tax_revenue']);
+  // パーセント・比率フィールド
+  const PCT_KEYS=new Set(['pop_change_pct','real_surplus_ratio','collection_rate_total','collection_rate_current','collection_rate_muni_tax','collection_rate_property']);
   extra.forEach(k=>{
     const label = EXTRA_LABELS[k] || k;
     const val = d[k];
-    const valStr = typeof val === 'number' ? val.toLocaleString('ja-JP') : (val == null ? '―' : String(val));
+    let valStr;
+    if(typeof val === 'number'){
+      if(MONEY_KEYS.has(k)) valStr = val.toLocaleString('ja-JP')+' '+u;
+      else if(PCT_KEYS.has(k)) valStr = val+'%';
+      else valStr = val.toLocaleString('ja-JP');
+    } else { valStr = val == null ? '―' : String(val); }
     eg.innerHTML+=`<div class="extra-card"><div class="extra-label">${label}</div><div class="extra-value">${valStr}</div></div>`;
   });
 
@@ -1811,7 +1826,6 @@ function sortDatasetsByYear() {
     'all_datasets_H30.json',
     'all_datasets_H29.json',
     'all_datasets_H28.json',
-    'all_datasets_H27.json',
   ];
 
   const prog = $('loadProgress'), bar = $('loadProgressBar'), lbl = $('loadProgressLabel'), pctEl = $('loadProgressPct');
