@@ -955,7 +955,9 @@ function showStatus(t,m) {
 // DATASET INFO
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function updateDsInfo() {
-  const ds = datasets[activeDs];
+  // footerはshowData()で自治体選択時のみ更新するため、ここでは何もしない
+}
+function updateFooterSource(ds) {
   if (!ds) return;
   $('footerText').innerHTML = `SOURCE: ${ds.source||ds.label||'―'} ／ ${ds.prefecture||''} ${ds.fiscal_year?'FY'+ds.fiscal_year:''}`;
 }
@@ -1783,6 +1785,9 @@ function showData(muniName) {
   $('muniName').textContent = d.name || muniName;
   const fyEl=$('muniFY'); if(ds.fiscal_year||ds.label){fyEl.textContent=ds.fiscal_year?fyLabel(ds.fiscal_year):ds.label;fyEl.style.display='';}else fyEl.style.display='none';
   const tyEl=$('muniType'); if(d.mtype){tyEl.textContent=d.mtype;tyEl.style.display='';}else tyEl.style.display='none';
+
+  // ── Footer SOURCE ──
+  updateFooterSource(ds);
 
   const u = unit(d);
 
