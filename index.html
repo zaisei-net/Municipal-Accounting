@@ -208,8 +208,8 @@ input[type=text]::placeholder{color:var(--text-dim);font-size:13px;}
 .taxbar-wrap{padding:16px;}
 .taxbar-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:8px;}
 .taxbar-track{height:20px;background:var(--surface3);border-radius:2px;overflow:hidden;position:relative;border:1px solid var(--border);}
-.taxbar-fill{height:100%;background:linear-gradient(90deg,#1976d2,#2e7d32);border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1);}
-.taxbar-pct{position:absolute;left:0;top:50%;transform:translate(-110%,-50%);font-family:'Noto Sans JP',sans-serif;font-size:11px;color:#000000;white-space:nowrap;transition:left .7s cubic-bezier(.4,0,.2,1);}
+.taxbar-fill{height:100%;background:linear-gradient(90deg,#e63329,#f57c00);border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1);}
+.taxbar-pct{position:absolute;left:0;top:50%;transform:translate(-110%,-50%);font-family:'Noto Sans JP',sans-serif;font-size:11px;color:var(--text);white-space:nowrap;transition:left .7s cubic-bezier(.4,0,.2,1);}
 
 /* Employee table */
 .emp-table{width:100%;border-collapse:collapse;font-size:12px;}
@@ -287,7 +287,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
     <span style="font-family:'Noto Sans JP',sans-serif;font-size:11px;color:var(--accent2)" id="loadProgressPct">0%</span>
   </div>
   <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;overflow:hidden;height:8px">
-    <div id="loadProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;transition:width .2s ease;position:relative">
+    <div id="loadProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#e63329,#1565c0,#2e7d32);border-radius:3px;transition:width .2s ease;position:relative">
       <div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.15) 50%,transparent 100%);animation:shimmer 1.5s infinite"></div>
     </div>
   </div>
@@ -1997,11 +1997,38 @@ function showData(muniName) {
   const extra=Object.keys(d).filter(k=>!KNOWN.has(k));
   $('tab-extra').style.display=extra.length?'':'none';
   const eg=$('extraGrid'); eg.innerHTML='';
+  // キーごとの単位定義
+  const EXTRA_MONEY_KEYS = new Set([
+    'base_fiscal_demand','base_fiscal_income','standard_tax_revenue',
+    'debt_commit_purchase','debt_commit_guarantee','debt_commit_other',
+    'lottery_revenue','land_dev_fund',
+  ]);
+  const EXTRA_PCT_KEYS = new Set([
+    'pop_change_pct','real_surplus_ratio',
+    'collection_rate_total','collection_rate_current',
+    'collection_rate_muni_tax','collection_rate_property',
+  ]);
+  const EXTRA_PERSON_KEYS = new Set([
+    'pop_r2_h27','pop_juki_r5','pop_juki_r6_jp',
+  ]);
   extra.forEach(k=>{
     const label = EXTRA_LABELS[k] || k;
     const val = d[k];
-    const valStr = typeof val === 'number' ? val.toLocaleString('ja-JP') : (val == null ? '―' : String(val));
-    eg.innerHTML+=`<div class="extra-card"><div class="extra-label">${label}</div><div class="extra-value">${valStr}</div></div>`;
+    let valStr, unitStr = '';
+    if (typeof val === 'number') {
+      if (EXTRA_MONEY_KEYS.has(k)) {
+        valStr = val.toLocaleString('ja-JP'); unitStr = ' ' + u;
+      } else if (EXTRA_PCT_KEYS.has(k)) {
+        valStr = val.toLocaleString('ja-JP'); unitStr = '%';
+      } else if (EXTRA_PERSON_KEYS.has(k)) {
+        valStr = val.toLocaleString('ja-JP'); unitStr = ' 人';
+      } else {
+        valStr = val.toLocaleString('ja-JP'); unitStr = '';
+      }
+    } else {
+      valStr = val == null ? '―' : String(val);
+    }
+    eg.innerHTML+=`<div class="extra-card"><div class="extra-label">${label}</div><div class="extra-value">${valStr}<span style="font-size:10px;color:var(--text-dim);margin-left:2px">${unitStr}</span></div></div>`;
   });
 
   // Animate gauge bars after render
