@@ -1478,6 +1478,15 @@ function searchAndShow(name) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // JSON キャッシュ (IndexedDB)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// データの簡易ハッシュ（変更検知用）
+function simpleHash(obj) {
+  const str = JSON.stringify(obj);
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+  }
+  return h >>> 0;
+}
 const DB_NAME = 'municipal-viewer', DB_VER = 1, STORE = 'json-cache';
 let _db = null;
 function openDB() {
@@ -2197,11 +2206,19 @@ function buildFirestoreURLs() {
 }
 
 // Realtime Database のURL一覧を生成
-function buildRealtimeURLs() {
+// cacheKey: IndexedDB のキー（cacheBuster なし・安定）
+// fetchUrl:  実際のリクエストURL（cacheBuster つき・キャッシュ無効化）
+function buildRealtimeEntries() {
   const cfg = FIREBASE_CONFIG;
   const cb = Date.now();
   const auth = cfg.idToken ? `&auth=${encodeURIComponent(cfg.idToken)}` : '';
-  return (cfg.realtimePaths || ['/datasets']).map(p => `${cfg.databaseURL}${p}.json?cacheBuster=${cb}${auth}`);
+  return (cfg.realtimePaths || ['/datasets']).map(p => ({
+    cacheKey: `rtdb:${cfg.databaseURL}${p}`,
+    fetchUrl:  `${cfg.databaseURL}${p}.json?cacheBuster=${cb}${auth}`,
+  }));
+}
+function buildRealtimeURLs() {
+  return buildRealtimeEntries().map(e => e.fetchUrl);
 }
 
 // Cloud Storage のURL一覧を生成
@@ -2269,54 +2286,139 @@ function normalizeFirebaseData(raw) {
     }, 100);
 
     try {
-      // URLリストを取得（各サービス並列fetch）
-      const urls = FIREBASE_SOURCE === 'realtime'  ? buildRealtimeURLs() :
-                   FIREBASE_SOURCE === 'firestore' ? buildFirestoreURLs() :
-                   buildStorageURLs();
+      // エントリ一覧を取得（Realtime はキャッシュキー付き、他はURL直接）
+      const entries = FIREBASE_SOURCE === 'realtime'
+        ? buildRealtimeEntries()
+        : (FIREBASE_SOURCE === 'firestore' ? buildFirestoreURLs() : buildStorageURLs())
+            .map(url => ({ cacheKey: `fb:${url.replace(/cacheBuster=\d+/, 'cacheBuster=0')}`, fetchUrl: url }));
 
-      const total = urls.length;
+      const total = entries.length;
       let loaded = 0;
+      let fromCache = 0;
       clearInterval(indetermTimer);
 
-      // 並列fetch（Promise.allSettled で一部失敗しても継続）
-      const results = await Promise.allSettled(
-        urls.map(async (url, i) => {
-          const res = await fetch(url, {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
+      // ── フェーズ1: キャッシュから即時表示 ──────────────────────
+      const cacheResults = await Promise.allSettled(
+        entries.map(({ cacheKey }) => cacheGet(cacheKey))
+      );
+
+      let addedCount = 0;
+      let cachedEntries = [];   // キャッシュヒットしたエントリ
+      let missedEntries = [];   // キャッシュミスしたエントリ
+
+      cacheResults.forEach((r, i) => {
+        const entry = entries[i];
+        if (r.status === 'fulfilled' && r.value !== null) {
+          // キャッシュヒット：即時反映
+          fromCache++;
+          cachedEntries.push({ ...entry, cachedData: r.value });
+          normalizeFirebaseData(r.value).forEach(ds => {
+            if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+              const existing = datasets.findIndex(d => d.label === ds.label);
+              if (existing >= 0) datasets[existing] = ds;
+              else { datasets.push(ds); addedCount++; }
+            }
           });
-          if (!res.ok) throw new Error(`HTTP ${res.status} (${url})`);
-          const data = await res.json();
-          loaded++;
-          const pct = Math.round((loaded / total) * 90);
-          bar.style.width = pct + '%';
-          if(pctEl) pctEl.textContent = pct + '%';
-          lbl.textContent = total > 1 ? `${loaded} / ${total} 年度読み込み中…` : 'データを解析中…';
-          return data;
+        } else {
+          missedEntries.push(entry);
+        }
+      });
+
+      // キャッシュヒット分を即座に画面反映
+      if (addedCount > 0) { sortDatasetsByYear(); activeDs = 0; }
+      if (fromCache > 0) {
+        bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
+        lbl.textContent = `キャッシュから ${fromCache} 件を表示（バックグラウンドで最新確認中…）`;
+        setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 600);
+        renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL();
+      }
+
+      // ── フェーズ2: ネットワークfetch（ミス分は必須、キャッシュ分はバックグラウンドで差分確認）──
+      const fetchTargets = [
+        ...missedEntries.map(e => ({ ...e, background: false })),
+        ...cachedEntries.map(e => ({ ...e, background: true })),
+      ];
+
+      if (fetchTargets.length === 0) {
+        bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
+        lbl.textContent = `${datasets.length} 件のデータを読み込みました（すべてキャッシュ）`;
+        return; // finally で非表示処理
+      }
+
+      // ミス分のみプログレス表示
+      const fetchMissTotal = missedEntries.length;
+      let fetchMissLoaded = 0;
+      if (fetchMissTotal > 0 && fromCache === 0) {
+        // 全部キャッシュミスの場合はプログレスを継続表示
+        prog.style.display = 'block';
+      }
+
+      let updatedCount = 0;
+      await Promise.allSettled(
+        fetchTargets.map(async ({ cacheKey, fetchUrl, cachedData, background }) => {
+          try {
+            const res = await fetch(fetchUrl, {
+              method: 'GET',
+              cache: 'no-store',
+              headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const freshData = await res.json();
+
+            if (!background) {
+              // ミス分：そのまま反映
+              await cachePut(cacheKey, freshData).catch(() => {});
+              normalizeFirebaseData(freshData).forEach(ds => {
+                if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+                  const existing = datasets.findIndex(d => d.label === ds.label);
+                  if (existing >= 0) datasets[existing] = ds;
+                  else { datasets.push(ds); addedCount++; }
+                }
+              });
+              fetchMissLoaded++;
+              const pct = Math.round((fetchMissLoaded / fetchMissTotal) * 90);
+              bar.style.width = pct + '%'; if(pctEl) pctEl.textContent = pct + '%';
+              lbl.textContent = `${fetchMissLoaded} / ${fetchMissTotal} 年度読み込み中…`;
+            } else {
+              // バックグラウンド：ハッシュ比較して差分があれば更新
+              const freshHash = simpleHash(freshData);
+              const cachedHash = simpleHash(cachedData);
+              if (freshHash !== cachedHash) {
+                await cachePut(cacheKey, freshData).catch(() => {});
+                // データを上書き
+                normalizeFirebaseData(freshData).forEach(ds => {
+                  if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+                    const existing = datasets.findIndex(d => d.label === ds.label);
+                    if (existing >= 0) { datasets[existing] = ds; updatedCount++; }
+                    else { datasets.push(ds); updatedCount++; }
+                  }
+                });
+                console.info(`データ更新検知: ${cacheKey}`);
+              }
+            }
+          } catch(e) {
+            console.warn(`fetch失敗 [${cacheKey}]:`, e.message);
+          }
         })
       );
 
-      lbl.textContent = 'データを解析中…';
-      let addedCount = 0;
-      results.forEach((r, i) => {
-        if (r.status === 'rejected') {
-          console.warn(`Firebase ノード取得失敗 [${i}]:`, r.reason);
-          return;
-        }
-        normalizeFirebaseData(r.value).forEach(ds => {
-          if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
-            const existing = datasets.findIndex(d => d.label === ds.label);
-            if (existing >= 0) datasets[existing] = ds;
-            else { datasets.push(ds); addedCount++; }
-          }
-        });
-      });
+      // ミス分の反映
+      if (fetchMissTotal > 0 && addedCount > 0) { sortDatasetsByYear(); activeDs = 0; }
 
-      if (addedCount > 0) { sortDatasetsByYear(); activeDs = 0; }
+      // バックグラウンド更新があった場合は画面を再描画
+      if (updatedCount > 0) {
+        sortDatasetsByYear();
+        renderTabs(); updateDsInfo(); rebuildDrilldown();
+        showStatus('ok', `✓ ${updatedCount} 件のデータが自動更新されました`);
+        console.info(`バックグラウンド更新: ${updatedCount} 件`);
+      }
 
       bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
-      lbl.textContent = addedCount > 0 ? `${datasets.length} 件のデータを読み込みました` : '組み込みデータを使用中';
+      if (fromCache === 0) {
+        lbl.textContent = addedCount > 0 ? `${datasets.length} 件のデータを読み込みました` : '組み込みデータを使用中';
+      } else if (updatedCount > 0) {
+        lbl.textContent = `${updatedCount} 件を自動更新しました`;
+      }
     } catch (e) {
       console.warn(`Firebase データ取得エラー (${FIREBASE_SOURCE}):`, e.message);
       bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
@@ -2332,18 +2434,22 @@ function normalizeFirebaseData(raw) {
     setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
   }
 
-  renderTabs();
-  updateDsInfo();
-  rebuildDrilldown();
-  updateCacheBar();
-  // URLパラメータ復元はデータロード完了後に実行
-  ptRestoreFromURL();
+  // キャッシュヒットがなかった場合のみここで初期描画
+  if (fromCache === 0) {
+    renderTabs();
+    updateDsInfo();
+    rebuildDrilldown();
+    updateCacheBar();
+    ptRestoreFromURL();
+  } else {
+    updateCacheBar();
+  }
 })();
 
 async function updateCacheBar() {
   try {
     const keys = await cacheKeys();
-    const jsonKeys = keys.filter(k => typeof k === 'string' && k.includes('json/'));
+    const jsonKeys = keys.filter(k => typeof k === 'string' && (k.includes('json/') || k.startsWith('rtdb:') || k.startsWith('fb:')));
     const bar = $('cacheBar'), info = $('cacheInfo');
     if (!bar || !info) return;
     if (jsonKeys.length > 0) {
@@ -2358,7 +2464,7 @@ async function updateCacheBar() {
 async function clearCache() {
   try {
     const keys = await cacheKeys();
-    const jsonKeys = keys.filter(k => typeof k === 'string' && k.includes('json/'));
+    const jsonKeys = keys.filter(k => typeof k === 'string' && (k.includes('json/') || k.startsWith('rtdb:') || k.startsWith('fb:')));
     await Promise.all(jsonKeys.map(k => cacheDelete(k)));
     const bar = $('cacheBar');
     if (bar) bar.style.display = 'none';
