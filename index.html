@@ -2140,90 +2140,201 @@ function sortDatasetsByYear() {
   datasets.sort((a, b) => fiscalYearToNum(b.fiscal_year) - fiscalYearToNum(a.fiscal_year));
 }
 
-// 個別JSONファイルを並列フェッチ（GitHub Pages対応）
-// /api/datasets (node server.js) があればそちら、なければ json/ フォルダから直接fetch
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FIREBASE 設定
+// プロジェクト: zaisei-net
+//
+// ▼ FIREBASE_SOURCE を変えるだけでサービスを切り替えられます
+//   'realtime' → Realtime Database（REST API）
+//   'firestore' → Firestore（REST API）
+//   'storage'  → Cloud Storage（公開ファイル）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const FIREBASE_SOURCE = 'realtime';   // 'realtime' | 'firestore' | 'storage'
+const FIREBASE_CONFIG = {
+  // ---- 共通 ----
+  projectId: 'zaisei-net',
+
+  // ---- Realtime Database 用 ----
+  databaseURL: 'https://zaisei-net-default-rtdb.asia-southeast1.firebasedatabase.app',
+  // 年度別ノードパスの一覧（並列fetch）
+  // upload_to_firebase.py でアップロードしたノードと合わせてください
+  // 不要な年度はコメントアウトしてください
+  realtimePaths: [
+    '/datasets/R5',
+    '/datasets/R4',
+    '/datasets/R3',
+    '/datasets/R2',
+    '/datasets/R1',
+    '/datasets/H30',
+    '/datasets/H29',
+    '/datasets/H28',
+    '/datasets/H27',
+  ],
+
+  // ---- Firestore 用（未使用）----
+  firestoreCollection: 'datasets',
+  firestoreDocIds: ['R5'],
+
+  // ---- Cloud Storage 用（未使用）----
+  storageBucket: 'zaisei-net.firebasestorage.app',
+  storagePaths: ['public/datasets.json'],
+
+  // ---- 認証 ----
+  // セキュリティルールで認証必須の場合のみ設定。公開データなら不要。
+  idToken: ''
+};
+
+// Firestore の各ドキュメントURL一覧を生成（キャッシュ無効化つき）
+// datasets/<docId> を年度別に並列fetch
+function buildFirestoreURLs() {
+  const cfg = FIREBASE_CONFIG;
+  const cb = Date.now();
+  const col = cfg.firestoreCollection || 'datasets';
+  const ids = cfg.firestoreDocIds || ['R5'];
+  return ids.map(id =>
+    `https://firestore.googleapis.com/v1/projects/${cfg.projectId}/databases/(default)/documents/${col}/${id}?cacheBuster=${cb}`
+  );
+}
+
+// Realtime Database のURL一覧を生成
+function buildRealtimeURLs() {
+  const cfg = FIREBASE_CONFIG;
+  const cb = Date.now();
+  const auth = cfg.idToken ? `&auth=${encodeURIComponent(cfg.idToken)}` : '';
+  return (cfg.realtimePaths || ['/datasets']).map(p => `${cfg.databaseURL}${p}.json?cacheBuster=${cb}${auth}`);
+}
+
+// Cloud Storage のURL一覧を生成
+function buildStorageURLs() {
+  const cfg = FIREBASE_CONFIG;
+  const cb = Date.now();
+  return (cfg.storagePaths || ['public/datasets.json']).map(p => {
+    const encoded = encodeURIComponent(p);
+    return `https://firebasestorage.googleapis.com/v0/b/${cfg.storageBucket}/o/${encoded}?alt=media&cacheBuster=${cb}`;
+  });
+}
+
+// Firestore レスポンス → データセット配列 に変換
+function firestoreValueUnwrap(v) {
+  if (v.stringValue  !== undefined) return v.stringValue;
+  if (v.integerValue !== undefined) return Number(v.integerValue);
+  if (v.doubleValue  !== undefined) return Number(v.doubleValue);
+  if (v.booleanValue !== undefined) return v.booleanValue;
+  if (v.nullValue    !== undefined) return null;
+  if (v.arrayValue)  return (v.arrayValue.values || []).map(firestoreValueUnwrap);
+  if (v.mapValue)    return firestoreDocToObj({ fields: v.mapValue.fields || {} });
+  return null;
+}
+function firestoreDocToObj(doc) {
+  if (!doc?.fields) return null;
+  const result = {};
+  for (const [k, v] of Object.entries(doc.fields)) result[k] = firestoreValueUnwrap(v);
+  return result;
+}
+function normalizeFirestoreData(raw) {
+  if (raw.fields)    return [firestoreDocToObj(raw)];
+  if (raw.documents) return raw.documents.map(firestoreDocToObj).filter(Boolean);
+  return [];
+}
+
+// 取得データ → datasets 配列 に正規化
+function normalizeFirebaseData(raw) {
+  if (FIREBASE_SOURCE === 'firestore') return normalizeFirestoreData(raw);
+  if (Array.isArray(raw))             return raw.filter(Boolean);
+  if (raw && typeof raw === 'object') return Object.values(raw).filter(Boolean);
+  return [];
+}
+
 (async () => {
-  const JSON_FILES = [
-    'all_datasets_R5.json',
-    'all_datasets_R4.json',
-    'all_datasets_R3.json',
-    'all_datasets_R2.json',
-    'all_datasets_R1.json',
-    'all_datasets_H30.json',
-    'all_datasets_H29.json',
-    'all_datasets_H28.json',
-  ];
+  const isFirebaseConfigured =
+    FIREBASE_SOURCE === 'realtime'  ? (!!FIREBASE_CONFIG.databaseURL && !FIREBASE_CONFIG.databaseURL.includes('YOUR_PROJECT')) :
+    FIREBASE_SOURCE === 'firestore' ? (!!FIREBASE_CONFIG.projectId && (FIREBASE_CONFIG.firestoreDocIds||[]).length > 0) :
+    FIREBASE_SOURCE === 'storage'   ? !!FIREBASE_CONFIG.storageBucket :
+    false;
 
   const prog = $('loadProgress'), bar = $('loadProgressBar'), lbl = $('loadProgressLabel'), pctEl = $('loadProgressPct');
   prog.style.display = 'block';
   bar.style.transition = 'width .15s ease';
   bar.style.width = '0%';
-  lbl.textContent = 'データを読み込み中…';
-  if(pctEl) pctEl.textContent = '0%';
 
-  // /api/datasets が使えるか試す（node server.js 環境）
-  let allData = null;
-  if (window.location.protocol !== 'file:') {
+  if (isFirebaseConfigured) {
+    const sourceLabel = { realtime: 'Realtime Database', firestore: 'Firestore', storage: 'Cloud Storage' }[FIREBASE_SOURCE] || 'Firebase';
+    lbl.textContent = `${sourceLabel} からデータを取得中…`;
+    if(pctEl) pctEl.textContent = '0%';
+
+    // 不定進捗アニメーション（レスポンス待ち中）
+    let indetermPct = 5;
+    const indetermTimer = setInterval(() => {
+      if (indetermPct < 80) { indetermPct += 1.5; bar.style.width = indetermPct + '%'; if(pctEl) pctEl.textContent = Math.round(indetermPct) + '%'; }
+    }, 100);
+
     try {
-      const apiRes = await fetch('/api/datasets');
-      if (apiRes.ok) {
-        allData = await apiRes.json();
-        bar.style.width = '90%';
-        if(pctEl) pctEl.textContent = '90%';
-        lbl.textContent = 'データ読み込み完了…';
-      }
-    } catch(e) { /* fallthrough to json/ folder */ }
-  }
+      // URLリストを取得（各サービス並列fetch）
+      const urls = FIREBASE_SOURCE === 'realtime'  ? buildRealtimeURLs() :
+                   FIREBASE_SOURCE === 'firestore' ? buildFirestoreURLs() :
+                   buildStorageURLs();
 
-  // /api/datasets が使えない場合は json/ フォルダから並列fetch（GitHub Pages環境）
-  if (!allData) {
-    const baseUrl = (() => {
-      const loc = window.location.href;
-      return loc.substring(0, loc.lastIndexOf('/') + 1) + 'json/';
-    })();
+      const total = urls.length;
+      let loaded = 0;
+      clearInterval(indetermTimer);
 
-    let loaded = 0;
-    const total = JSON_FILES.length;
+      // 並列fetch（Promise.allSettled で一部失敗しても継続）
+      const results = await Promise.allSettled(
+        urls.map(async (url, i) => {
+          const res = await fetch(url, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status} (${url})`);
+          const data = await res.json();
+          loaded++;
+          const pct = Math.round((loaded / total) * 90);
+          bar.style.width = pct + '%';
+          if(pctEl) pctEl.textContent = pct + '%';
+          lbl.textContent = total > 1 ? `${loaded} / ${total} 年度読み込み中…` : 'データを解析中…';
+          return data;
+        })
+      );
 
-    const results = await Promise.allSettled(
-      JSON_FILES.map(async fname => {
-        const url = baseUrl + fname;
-        const data = await fetchWithCache(url);
-        loaded++;
-        const pct = Math.round((loaded / total) * 90);
-        bar.style.width = pct + '%';
-        if(pctEl) pctEl.textContent = pct + '%';
-        lbl.textContent = `${loaded} / ${total} ファイル読み込み中…`;
-        return data;
-      })
-    );
+      lbl.textContent = 'データを解析中…';
+      let addedCount = 0;
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.warn(`Firebase ノード取得失敗 [${i}]:`, r.reason);
+          return;
+        }
+        normalizeFirebaseData(r.value).forEach(ds => {
+          if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+            const existing = datasets.findIndex(d => d.label === ds.label);
+            if (existing >= 0) datasets[existing] = ds;
+            else { datasets.push(ds); addedCount++; }
+          }
+        });
+      });
 
-    allData = [];
-    results.forEach(r => { if (r.status === 'fulfilled') { const d = r.value; if (Array.isArray(d)) allData.push(...d); else allData.push(d); } });
-  }
+      if (addedCount > 0) { sortDatasetsByYear(); activeDs = 0; }
 
-  let addedCount = 0;
-  (Array.isArray(allData) ? allData : [allData]).forEach(ds => {
-    if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
-      const existing = datasets.findIndex(d => d.label === ds.label);
-      if (existing >= 0) datasets[existing] = ds;
-      else { datasets.push(ds); addedCount++; }
+      bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
+      lbl.textContent = addedCount > 0 ? `${datasets.length} 件のデータを読み込みました` : '組み込みデータを使用中';
+    } catch (e) {
+      console.warn(`Firebase データ取得エラー (${FIREBASE_SOURCE}):`, e.message);
+      bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
+      lbl.textContent = '組み込みデータを使用中';
+    } finally {
+      clearInterval(indetermTimer);
+      setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
     }
-  });
-
-  if (addedCount > 0) {
-    sortDatasetsByYear();
-    activeDs = 0;
+  } else {
+    // Firebase 未設定：組み込みデータをそのまま使用
+    bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
+    lbl.textContent = `組み込みデータ ${datasets.length} 件を読み込みました`;
+    setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
   }
 
-  bar.style.width = '100%';
-  if(pctEl) pctEl.textContent = '100%';
-  lbl.textContent = addedCount > 0 ? `${datasets.length} 件のデータを読み込みました` : '組み込みデータを使用中';
-  setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
   renderTabs();
   updateDsInfo();
   rebuildDrilldown();
-  // キャッシュ情報バーを更新
   updateCacheBar();
   // URLパラメータ復元はデータロード完了後に実行
   ptRestoreFromURL();
