@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-T3VBBT0ZNY"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-T3VBBT0ZNY');
-</script>
 <meta name="google-site-verification" content="MaUMTXa-O4mu69dJjqKAqoULMLk1qdKo4u3WmVXe5HE" />
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1882,8 +1873,11 @@ function showData(muniName) {
     d.expenditure_by_nature.forEach(row=>{
       const isTotal=row.label.includes('合計'); const isSub=row.label.startsWith('(');
       const bw=maxN>0?(row.amount||0)/maxN*100:0;
+      const indentPx = row.indent ? row.indent*16
+        : (row.label.startsWith('　　')||row.label.startsWith('  ')) ? 32
+        : (row.label.startsWith('　')||row.label.startsWith(' ')) ? 16 : 0;
       tb.innerHTML+=`<tr class="${isTotal?'total':isSub?'subtotal':''}">
-        <td style="${row.label.startsWith('　')||row.label.startsWith(' ')?'padding-left:16px':''}${row.label.startsWith('　　')||row.label.startsWith('  ')?';padding-left:32px':''}">${row.label.replace(/^[\s　]+/,'')}</td><td>${fmt(row.amount)}</td><td>${row.pct!=null?row.pct+'%':'―'}</td>
+        <td style="${indentPx?'padding-left:'+indentPx+'px':''}">${row.label.replace(/^[\s　]+/,'')}</td><td>${fmt(row.amount)}</td><td>${row.pct!=null?row.pct+'%':'―'}</td>
         <td><div class="pct-bar-wrap"><div class="pct-bar-track"><div class="pct-bar-fill green" style="width:${bw.toFixed(1)}%"></div></div></div></td>
         <td>${fmt(row.alloc_general)}</td><td>${fmt(row.current_alloc)}</td><td>${row.current_ratio!=null?row.current_ratio+'%':'―'}</td>
       </tr>`;
