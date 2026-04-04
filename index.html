@@ -819,7 +819,8 @@ const KNOWN = new Set([
   'revenue_detail','expenditure_by_nature','expenditure_by_purpose',
   'tax_detail','employees','laspeyres_index',
   'public_enterprises','payout_total','tax_collection',
-  'regular_general_revenue','total_general_revenue','unit'
+  'regular_general_revenue','total_general_revenue','unit',
+  'pop_h27','reserve_fund_withdrawal'
 ]);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1893,7 +1894,7 @@ function showData(muniName) {
    ['単年度収支',d.annual_balance,d.annual_balance_prev],
    ['実質単年度収支',d.real_annual_balance,null],
    ['積立金',d.reserve_fund,null],
-   ['積立金取崩し額',d.reserve_fund_rollover,null],
+   ['積立金取崩し額',d.reserve_fund_rollover ?? d.reserve_fund_withdrawal,null],
   ].forEach(([l,v,p])=>{ if(v!=null) bodyBal.innerHTML+=makeRow(l,v,cls(v),p,null,u); });
   $('cardBalance').style.display = d.real_balance!=null?'':'none';
 
@@ -2067,6 +2068,8 @@ function showData(muniName) {
     collection_rate_muni_tax: '収納率（市町村民税）',
     collection_rate_property: '収納率（固定資産税）',
     pop_r2_h27:            '国調人口（H27）',
+    pop_h27:               '国調人口（H27）',
+    reserve_fund_withdrawal: '積立金取崩し額',
     pop_juki_r5:           '住基人口（R5）',
     pop_juki_r6_jp:        '住基人口・日本人（R6）',
   };
@@ -2077,7 +2080,7 @@ function showData(muniName) {
   const EXTRA_MONEY_KEYS = new Set([
     'base_fiscal_demand','base_fiscal_income','standard_tax_revenue',
     'debt_commit_purchase','debt_commit_guarantee','debt_commit_other',
-    'lottery_revenue','land_dev_fund',
+    'lottery_revenue','land_dev_fund','reserve_fund_withdrawal',
   ]);
   const EXTRA_PCT_KEYS = new Set([
     'pop_change_pct','real_surplus_ratio',
@@ -2085,7 +2088,7 @@ function showData(muniName) {
     'collection_rate_muni_tax','collection_rate_property',
   ]);
   const EXTRA_PERSON_KEYS = new Set([
-    'pop_r2_h27','pop_juki_r5','pop_juki_r6_jp',
+    'pop_r2_h27','pop_h27','pop_juki_r5','pop_juki_r6_jp',
   ]);
   extra.forEach(k=>{
     const label = EXTRA_LABELS[k] || k;
@@ -2326,12 +2329,27 @@ function normalizeData(raw) {
   const fetchMissTotal = missedEntries.length;
   let fetchMissLoaded = 0, updatedCount = 0;
 
+  let _totalBytes = 0, _totalMs = 0, _speedSamples = 0;
+
   const doFetch = async (entry, isBg) => {
     const { cacheKey, fetchUrl } = entry;
     try {
+      const t0 = Date.now();
       const res = await fetch(fetchUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const freshData = await res.json();
+      const blob = await res.blob();
+      const ms = Date.now() - t0;
+      const bytes = blob.size;
+      const freshData = JSON.parse(await blob.text());
+
+      // 速度計測（バックグラウンドも含めて累計）
+      _totalBytes += bytes;
+      _totalMs    += ms;
+      _speedSamples++;
+      const mbps = _totalMs > 0 ? (_totalBytes * 8 / 1024 / 1024) / (_totalMs / 1000) : 0;
+      const mbDL  = (_totalBytes / 1024 / 1024).toFixed(1);
+      const speedStr = mbps >= 1 ? `${mbps.toFixed(1)} Mbps` : `${(mbps*1024).toFixed(0)} Kbps`;
+
       await cachePut(cacheKey, freshData).catch(() => {});
       let changed = false;
       normalizeData(freshData).forEach(ds => {
@@ -2345,7 +2363,7 @@ function normalizeData(raw) {
         fetchMissLoaded++;
         const pct = Math.round(fetchMissLoaded / Math.max(fetchMissTotal,1) * 90);
         bar.style.width = pct + '%'; if(pctEl) pctEl.textContent = pct + '%';
-        lbl.textContent = `${fetchMissLoaded} / ${fetchMissTotal} ファイル読み込み中…`;
+        lbl.textContent = `${fetchMissLoaded} / ${fetchMissTotal} ファイル読み込み中… ${mbDL} MB 取得済（${speedStr}）`;
       } else if (changed) { updatedCount++; }
     } catch(e) { console.warn(`fetch失敗 [${cacheKey}]:`, e.message); }
   };
