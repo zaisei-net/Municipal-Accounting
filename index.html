@@ -2282,6 +2282,45 @@ function normalizeData(raw) {
     renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL();
   }
 
+  // ── ダウンロード確認ダイアログ（毎回表示）──
+  {
+    prog.style.display = 'none';
+    const MB = Math.round(entries.length * 7.2);
+    const cacheNote = fromCache > 0
+      ? `（うち ${fromCache} 件はキャッシュ済み・即時表示中）`
+      : '';
+    const confirmed = await new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px';
+      overlay.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:32px;max-width:440px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+          <div style="font-size:11px;letter-spacing:3px;color:var(--accent);font-family:'Noto Sans JP',sans-serif;margin-bottom:12px">データ取得の確認</div>
+          <h2 style="font-size:17px;font-weight:700;color:var(--text-bright);margin-bottom:16px;line-height:1.5">約 ${MB} MB のデータをダウンロードします</h2>
+          <p style="font-size:13px;color:var(--text-dim);line-height:1.8;margin-bottom:8px">
+            全国 市区町村・都道府県の決算データ（H27〜R6）を GitHub から取得します。${cacheNote}
+          </p>
+          <p style="font-size:12px;color:var(--text-dim);line-height:1.8;margin-bottom:24px">
+            ※ モバイル回線での利用は通信量にご注意ください。
+          </p>
+          <div style="display:flex;gap:12px;justify-content:flex-end">
+            <button id="_dlCancel" style="padding:10px 20px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-dim);font-family:'Noto Sans JP',sans-serif;font-size:13px;cursor:pointer">キャンセル</button>
+            <button id="_dlOk" style="padding:10px 24px;border:none;border-radius:3px;background:var(--accent);color:#fff;font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:700;cursor:pointer">ダウンロード開始</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#_dlOk').onclick    = () => { document.body.removeChild(overlay); resolve(true);  };
+      overlay.querySelector('#_dlCancel').onclick = () => { document.body.removeChild(overlay); resolve(false); };
+    });
+    if (!confirmed) {
+      lbl.textContent = 'キャンセルしました。';
+      prog.style.display = 'block';
+      bar.style.width = '0%';
+      setTimeout(() => { prog.style.display = 'none'; }, 3000);
+      return;
+    }
+    prog.style.display = 'block';
+  }
+
   // ── フェーズ2: ネットワークfetch（ミス分を先に、残りをバックグラウンドで）──
   const fetchSecond = entries.filter(e => !missedEntries.includes(e));
   const fetchMissTotal = missedEntries.length;
