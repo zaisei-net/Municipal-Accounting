@@ -1,10 +1,18 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-MFQ6NETV22"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-MFQ6NETV22');
+</script>
 <meta name="google-site-verification" content="MaUMTXa-O4mu69dJjqKAqoULMLk1qdKo4u3WmVXe5HE" />
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>市区町村 決算・減税ビューア</title>
+<title>自治体 決算・減税ビューア</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -260,8 +268,8 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
 <body>
 <div class="container">
 <header>
-  <div class="header-badge">MUNICIPAL FISCAL DATA VIEWER</div>
-  <h1>市区町村 <em>決算・減税</em> ビューア</h1>
+  <div class="header-badge">LOCAL GOV FISCAL DATA VIEWER</div>
+  <h1>自治体 <em>決算・減税</em> ビューア</h1>
 
 </header>
 
@@ -785,7 +793,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
 </div><!-- /dataset-panel -->
 </div><!-- /container -->
 
-<footer id="footerText">MUNICIPAL FISCAL DATA VIEWER ／ JSONインポートで全国・任意年度に対応</footer>
+<footer id="footerText">LOCAL GOV FISCAL DATA VIEWER ／ JSONインポートで全国・任意年度に対応</footer>
 
 <script>
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1302,9 +1310,13 @@ function ddClearYear() {
   $('results').style.display = 'none';
 }
 
-// 都道府県：全データセットから収集
+// 都道府県：全データセットから収集（都道府県カード専用ノードは除外）
 function ddBuildPref(selPref) {
-  const prefs = sortPrefs([...new Set(datasets.map(dsPrefKey).filter(Boolean))]);
+  const prefs = sortPrefs([...new Set(
+    datasets
+      .filter(d => d.prefecture !== '全国（都道府県）')
+      .map(dsPrefKey).filter(Boolean)
+  )]);
   ddSetOpts($('ddPref'), prefs, '-- 都道府県を選択 --', selPref);
   if ($('ddPref').value) ddBuildMuni($('ddPref').value, '');
   else ddClearMuni();
@@ -1313,9 +1325,19 @@ function ddBuildPref(selPref) {
 // 市区町村：選んだ都道府県の全データセットから自治体名を収集（重複除去・五十音順）
 function ddBuildMuni(pref, selMuni) {
   const names = [...new Set(
-    datasets.filter(d => dsPrefKey(d) === pref)
+    datasets
+      .filter(d => dsPrefKey(d) === pref && d.prefecture !== '全国（都道府県）')
       .flatMap(d => Object.keys(d.municipalities || {}))
-  )], sorted = sortMunisByCode(names);
+  )];
+  const hasPrefNames = names.some(n => /[都道府県]$/.test(n));
+  const sorted = hasPrefNames
+    ? [...names].sort((a, b) => {
+        const ia = PREF_ORDER.indexOf(a), ib = PREF_ORDER.indexOf(b);
+        if (ia < 0 && ib < 0) return a.localeCompare(b, 'ja');
+        if (ia < 0) return 1; if (ib < 0) return -1;
+        return ia - ib;
+      })
+    : sortMunisByCode(names);
   ddSetOpts($('ddMuni'), sorted, `-- 市区町村を選択 (${sorted.length}件) --`, selMuni);
   if ($('ddMuni').value) ddBuildYear(pref, $('ddMuni').value, '');
   else ddClearYear();
@@ -1355,11 +1377,7 @@ function ddOnPref() {
   const prefCardRow = $('prefCardRow');
   if (prefCardRow) prefCardRow.style.display = 'none';
   if (!pref) return;
-
-  // 市区町村リストを通常通り構築
   ddBuildMuni(pref, '');
-
-  // 都道府県カードデータがあれば選択行を表示
   const prefCardDs = datasets.filter(d =>
     d.prefecture === '全国（都道府県）' && d.municipalities?.[pref]
   );
@@ -1370,18 +1388,12 @@ function ddOnPref() {
     prefCardRow.style.display = '';
   }
 }
-
-// 都道府県カードの年度セレクト変更
 function ddOnPrefYear() {
-  const pref = $('ddPref').value;
-  const year = $('ddPrefYear').value;
+  const pref = $('ddPref').value, year = $('ddPrefYear').value;
   if (pref && year) ddShowData('全国（都道府県）', pref, year);
 }
-
-// 都道府県カード「表示」ボタン
 function ddShowPrefCard() {
-  const pref = $('ddPref').value;
-  const year = $('ddPrefYear').value;
+  const pref = $('ddPref').value, year = $('ddPrefYear').value;
   if (pref && year) ddShowData('全国（都道府県）', pref, year);
 }
 function ddOnMuni() {
@@ -1529,7 +1541,7 @@ function simpleHash(obj) {
   }
   return h >>> 0;
 }
-const DB_NAME = 'municipal-viewer', DB_VER = 1, STORE = 'json-cache';
+const DB_NAME = 'jichidb-viewer',   DB_VER = 1, STORE = 'json-cache';
 let _db = null;
 function openDB() {
   if (_db) return Promise.resolve(_db);
@@ -1669,7 +1681,7 @@ function renderTaxPie(taxDetail) {
     item.style.cssText = 'display:flex;align-items:center;gap:8px';
     item.innerHTML = `
       <span style="width:12px;height:12px;border-radius:2px;background:${s.color};flex-shrink:0"></span>
-      <span style="color:var(--text-dim)">${s.row.label}</span>
+      <span style="color:var(--text-dim)">${s.row.label.replace(/^[\s　]+/,"")}</span>
       <span style="font-family:'Noto Sans JP',sans-serif;color:var(--text-bright);margin-left:auto;padding-left:8px">${pct}%</span>
     `;
     legend.appendChild(item);
@@ -1770,7 +1782,7 @@ function renderDonut(rows, canvasId, legendId, centerText='内訳') {
     el.style.cssText='display:flex;align-items:center;gap:6px';
     el.innerHTML=`
       <span style="width:10px;height:10px;border-radius:2px;background:${s.color};flex-shrink:0"></span>
-      <span style="color:var(--text-dim);font-size:11px">${s.row.label}</span>
+      <span style="color:var(--text-dim);font-size:11px">${s.row.label.replace(/^[\s　]+/,"")}</span>
       <span style="font-family:'Noto Sans JP',sans-serif;color:var(--text-bright);margin-left:auto;padding-left:6px;font-size:11px">${pct}%</span>
     `;
     legend.appendChild(el);
@@ -2004,7 +2016,7 @@ function showData(muniName) {
       const isTotal=row.tax1==='合計'; const isSub=row.tax1==='小計';
       const bw=maxT>0?(row.amount||0)/maxT*100:0;
       tb.innerHTML+=`<tr class="${isTotal?'total':isSub?'subtotal':''}">
-        <td>${row.tax1||''}</td><td>${row.label}</td><td>${fmt(row.amount)}</td>
+        <td>${row.tax1||''}</td><td>${row.label.replace(/^[\s　]+/,"")}</td><td>${fmt(row.amount)}</td>
         <td>${row.pct!=null?row.pct+'%':'―'}</td>
         <td><div class="pct-bar-wrap"><div class="pct-bar-track"><div class="pct-bar-fill orange" style="width:${bw.toFixed(1)}%"></div></div></div></td>
         <td>${fmt(row.extra_tax)}</td>
@@ -2194,328 +2206,141 @@ function sortDatasetsByYear() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// FIREBASE 設定
-// プロジェクト: zaisei-net
-//
-// ▼ FIREBASE_SOURCE を変えるだけでサービスを切り替えられます
-//   'realtime' → Realtime Database（REST API）
-//   'firestore' → Firestore（REST API）
-//   'storage'  → Cloud Storage（公開ファイル）
+// データソース設定（GitHub Raw）
+// json/      → 市区町村決算カード (all_datasets_<年度>.json)
+// pref_json/ → 都道府県決算カード (all_pref_datasets_<年度>.json)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const FIREBASE_SOURCE = 'realtime';   // 'realtime' | 'firestore' | 'storage'
-const FIREBASE_CONFIG = {
-  // ---- 共通 ----
-  projectId: 'zaisei-net',
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/zaisei-net/jsons/refs/heads/main';
 
-  // ---- Realtime Database 用 ----
-  databaseURL: 'https://zaisei-net-default-rtdb.asia-southeast1.firebasedatabase.app',
-  // 年度別ノードパスの一覧（並列fetch）
-  // upload_to_firebase.py でアップロードしたノードと合わせてください
-  // 不要な年度はコメントアウトしてください
-  realtimePaths: [
-    // ── 市区町村決算カード ──
-    '/datasets/R6',
-    '/datasets/R5',
-    '/datasets/R4',
-    '/datasets/R3',
-    '/datasets/R2',
-    '/datasets/R1',
-    '/datasets/H30',
-    '/datasets/H29',
-    '/datasets/H28',
-    '/datasets/H27',
-    // ── 都道府県決算カード ──
-    '/pref_datasets/R6',
-    '/pref_datasets/R5',
-    '/pref_datasets/R4',
-    '/pref_datasets/R3',
-    '/pref_datasets/R2',
-    '/pref_datasets/R1',
-    '/pref_datasets/H30',
-    '/pref_datasets/H29',
-    '/pref_datasets/H28',
-    '/pref_datasets/H27',
-  ],
+// 読み込む年度（不要な年度はコメントアウト）
+const MUNI_YEARS = ['R6','R5','R4','R3','R2','R1','H30','H29','H28','H27'];
+const PREF_YEARS = ['R6','R5','R4','R3','R2','R1','H30','H29','H28','H27'];
 
-  // ---- Firestore 用（未使用）----
-  firestoreCollection: 'datasets',
-  firestoreDocIds: ['R5'],
-
-  // ---- Cloud Storage 用（未使用）----
-  storageBucket: 'zaisei-net.firebasestorage.app',
-  storagePaths: ['public/datasets.json'],
-
-  // ---- 認証 ----
-  // セキュリティルールで認証必須の場合のみ設定。公開データなら不要。
-  idToken: ''
-};
-
-// Firestore の各ドキュメントURL一覧を生成（キャッシュ無効化つき）
-// datasets/<docId> を年度別に並列fetch
-function buildFirestoreURLs() {
-  const cfg = FIREBASE_CONFIG;
+function buildGitHubEntries() {
   const cb = Date.now();
-  const col = cfg.firestoreCollection || 'datasets';
-  const ids = cfg.firestoreDocIds || ['R5'];
-  return ids.map(id =>
-    `https://firestore.googleapis.com/v1/projects/${cfg.projectId}/databases/(default)/documents/${col}/${id}?cacheBuster=${cb}`
-  );
-}
-
-// Realtime Database のURL一覧を生成
-// cacheKey: IndexedDB のキー（cacheBuster なし・安定）
-// fetchUrl:  実際のリクエストURL（cacheBuster つき・キャッシュ無効化）
-function buildRealtimeEntries() {
-  const cfg = FIREBASE_CONFIG;
-  const cb = Date.now();
-  const auth = cfg.idToken ? `&auth=${encodeURIComponent(cfg.idToken)}` : '';
-  return (cfg.realtimePaths || ['/datasets']).map(p => ({
-    cacheKey: `rtdb:${cfg.databaseURL}${p}`,
-    fetchUrl:  `${cfg.databaseURL}${p}.json?cacheBuster=${cb}${auth}`,
+  const muni = MUNI_YEARS.map(y => ({
+    cacheKey: `gh:json/all_datasets_${y}.json`,
+    fetchUrl:  `${GITHUB_RAW_BASE}/json/all_datasets_${y}.json?cb=${cb}`,
   }));
-}
-function buildRealtimeURLs() {
-  return buildRealtimeEntries().map(e => e.fetchUrl);
-}
-
-// Cloud Storage のURL一覧を生成
-function buildStorageURLs() {
-  const cfg = FIREBASE_CONFIG;
-  const cb = Date.now();
-  return (cfg.storagePaths || ['public/datasets.json']).map(p => {
-    const encoded = encodeURIComponent(p);
-    return `https://firebasestorage.googleapis.com/v0/b/${cfg.storageBucket}/o/${encoded}?alt=media&cacheBuster=${cb}`;
-  });
-}
-
-// Firestore レスポンス → データセット配列 に変換
-function firestoreValueUnwrap(v) {
-  if (v.stringValue  !== undefined) return v.stringValue;
-  if (v.integerValue !== undefined) return Number(v.integerValue);
-  if (v.doubleValue  !== undefined) return Number(v.doubleValue);
-  if (v.booleanValue !== undefined) return v.booleanValue;
-  if (v.nullValue    !== undefined) return null;
-  if (v.arrayValue)  return (v.arrayValue.values || []).map(firestoreValueUnwrap);
-  if (v.mapValue)    return firestoreDocToObj({ fields: v.mapValue.fields || {} });
-  return null;
-}
-function firestoreDocToObj(doc) {
-  if (!doc?.fields) return null;
-  const result = {};
-  for (const [k, v] of Object.entries(doc.fields)) result[k] = firestoreValueUnwrap(v);
-  return result;
-}
-function normalizeFirestoreData(raw) {
-  if (raw.fields)    return [firestoreDocToObj(raw)];
-  if (raw.documents) return raw.documents.map(firestoreDocToObj).filter(Boolean);
-  return [];
+  const pref = PREF_YEARS.map(y => ({
+    cacheKey: `gh:pref_json/all_pref_datasets_${y}.json`,
+    fetchUrl:  `${GITHUB_RAW_BASE}/pref_json/all_pref_datasets_${y}.json?cb=${cb}`,
+  }));
+  return [...muni, ...pref];
 }
 
 // 取得データ → datasets 配列 に正規化
-function normalizeFirebaseData(raw) {
-  if (FIREBASE_SOURCE === 'firestore') return normalizeFirestoreData(raw);
-  if (Array.isArray(raw))             return raw.filter(Boolean);
+function normalizeData(raw) {
+  if (Array.isArray(raw)) return raw.filter(Boolean);
   if (raw && typeof raw === 'object') return Object.values(raw).filter(Boolean);
   return [];
 }
 
 (async () => {
-  const isFirebaseConfigured =
-    FIREBASE_SOURCE === 'realtime'  ? (!!FIREBASE_CONFIG.databaseURL && !FIREBASE_CONFIG.databaseURL.includes('YOUR_PROJECT')) :
-    FIREBASE_SOURCE === 'firestore' ? (!!FIREBASE_CONFIG.projectId && (FIREBASE_CONFIG.firestoreDocIds||[]).length > 0) :
-    FIREBASE_SOURCE === 'storage'   ? !!FIREBASE_CONFIG.storageBucket :
-    false;
-
   const prog = $('loadProgress'), bar = $('loadProgressBar'), lbl = $('loadProgressLabel'), pctEl = $('loadProgressPct');
   prog.style.display = 'block';
   bar.style.transition = 'width .15s ease';
   bar.style.width = '0%';
+  lbl.textContent = 'GitHub からデータを取得中…';
+  if(pctEl) pctEl.textContent = '0%';
 
-  if (isFirebaseConfigured) {
-    const sourceLabel = { realtime: 'Realtime Database', firestore: 'Firestore', storage: 'Cloud Storage' }[FIREBASE_SOURCE] || 'Firebase';
-    lbl.textContent = `${sourceLabel} からデータを取得中…`;
-    if(pctEl) pctEl.textContent = '0%';
+  const entries = buildGitHubEntries();
+  const total = entries.length;
+  let fromCache = 0, addedCount = 0;
 
-    // 不定進捗アニメーション（レスポンス待ち中）
-    let indetermPct = 5;
-    const indetermTimer = setInterval(() => {
-      if (indetermPct < 80) { indetermPct += 1.5; bar.style.width = indetermPct + '%'; if(pctEl) pctEl.textContent = Math.round(indetermPct) + '%'; }
-    }, 100);
+  // ── フェーズ1: キャッシュから即時表示 ──────────────────────
+  const cacheResults = await Promise.allSettled(entries.map(({cacheKey}) => cacheGet(cacheKey)));
+  const missedEntries = [];
 
-    try {
-      // エントリ一覧を取得（Realtime はキャッシュキー付き、他はURL直接）
-      const entries = FIREBASE_SOURCE === 'realtime'
-        ? buildRealtimeEntries()
-        : (FIREBASE_SOURCE === 'firestore' ? buildFirestoreURLs() : buildStorageURLs())
-            .map(url => ({ cacheKey: `fb:${url.replace(/cacheBuster=\d+/, 'cacheBuster=0')}`, fetchUrl: url }));
-
-      const total = entries.length;
-      let loaded = 0;
-      let fromCache = 0;
-      clearInterval(indetermTimer);
-
-      // ── フェーズ1: キャッシュから即時表示 ──────────────────────
-      const cacheResults = await Promise.allSettled(
-        entries.map(({ cacheKey }) => cacheGet(cacheKey))
-      );
-
-      let addedCount = 0;
-      let missedEntries = [];
-
-      cacheResults.forEach((r, i) => {
-        const entry = entries[i];
-        if (r.status === 'fulfilled' && r.value !== null) {
-          fromCache++;
-          normalizeFirebaseData(r.value).forEach(ds => {
-            if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
-              const existing = datasets.findIndex(d => d.label === ds.label);
-              if (existing >= 0) datasets[existing] = ds;
-              else { datasets.push(ds); addedCount++; }
-            }
-          });
-        } else {
-          missedEntries.push(entry);
+  cacheResults.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value !== null) {
+      fromCache++;
+      normalizeData(r.value).forEach(ds => {
+        if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+          const ex = datasets.findIndex(d => d.label === ds.label);
+          if (ex >= 0) datasets[ex] = ds; else { datasets.push(ds); addedCount++; }
         }
       });
-
-      // キャッシュヒット分を即座に画面反映
-      if (addedCount > 0) { sortDatasetsByYear(); activeDs = 0; }
-      if (fromCache > 0) {
-        bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
-        lbl.textContent = `キャッシュから ${fromCache} 件を表示（バックグラウンドで最新確認中…）`;
-        setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 600);
-        renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL();
-      }
-
-      // ── フェーズ2: 全エントリをネットワークfetchして常に最新を反映 ──
-      // ハッシュ比較を廃止：衝突リスクがあり、変更を見逃す原因になる
-      if (missedEntries.length === 0 && fromCache > 0) {
-        // 全部キャッシュヒット → バックグラウンドで全件fetch・更新
-        prog.style.display = 'none';
-      } else {
-        prog.style.display = 'block';
-      }
-
-      const fetchMissTotal = missedEntries.length || entries.length;
-      let fetchMissLoaded = 0;
-      let updatedCount = 0;
-
-      // キャッシュミス分を優先fetch、その後全件バックグラウンドで再fetch
-      const fetchFirst  = missedEntries;
-      const fetchSecond = entries.filter(e => !missedEntries.includes(e));
-
-      const doFetch = async (entry, isBg) => {
-        const { cacheKey, fetchUrl } = entry;
-        try {
-          const res = await fetch(fetchUrl, {
-            method: 'GET', cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' }
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const freshData = await res.json();
-
-          // 常にキャッシュ更新
-          await cachePut(cacheKey, freshData).catch(() => {});
-
-          // データを反映（常に上書き）
-          let changed = false;
-          normalizeFirebaseData(freshData).forEach(ds => {
-            if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
-              const existing = datasets.findIndex(d => d.label === ds.label);
-              if (existing >= 0) { datasets[existing] = ds; changed = true; }
-              else { datasets.push(ds); addedCount++; changed = true; }
-            }
-          });
-
-          if (!isBg) {
-            fetchMissLoaded++;
-            const pct = Math.round((fetchMissLoaded / fetchMissTotal) * 90);
-            bar.style.width = pct + '%'; if(pctEl) pctEl.textContent = pct + '%';
-            lbl.textContent = `${fetchMissLoaded} / ${fetchMissTotal} 年度読み込み中…`;
-          } else if (changed) {
-            updatedCount++;
-            console.info(`データ更新: ${cacheKey}`);
-          }
-        } catch(e) {
-          console.warn(`fetch失敗 [${cacheKey}]:`, e.message);
-        }
-      };
-
-      // ミス分を先に並列fetch
-      await Promise.allSettled(fetchFirst.map(e => doFetch(e, false)));
-      if (addedCount > 0 || fetchFirst.length > 0) { sortDatasetsByYear(); activeDs = 0; }
-      if (fetchFirst.length > 0) {
-        renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL();
-      }
-
-      // キャッシュ済み分をバックグラウンドで並列fetch（常に最新化）
-      Promise.allSettled(fetchSecond.map(e => doFetch(e, true))).then(() => {
-        if (updatedCount > 0) {
-          sortDatasetsByYear();
-          renderTabs(); updateDsInfo(); rebuildDrilldown();
-          console.info(`バックグラウンド更新: ${updatedCount} 件`);
-        }
-      });
-
-      bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
-      if (fromCache === 0) {
-        lbl.textContent = addedCount > 0 ? `${datasets.length} 件のデータを読み込みました` : '組み込みデータを使用中';
-      } else if (updatedCount > 0) {
-        lbl.textContent = `${updatedCount} 件を自動更新しました`;
-      }
-    } catch (e) {
-      console.warn(`Firebase データ取得エラー (${FIREBASE_SOURCE}):`, e.message);
-      bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
-      lbl.textContent = '組み込みデータを使用中';
-    } finally {
-      clearInterval(indetermTimer);
-      setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
+    } else {
+      missedEntries.push(entries[i]);
     }
-  } else {
-    // Firebase 未設定：組み込みデータをそのまま使用
+  });
+
+  if (addedCount > 0) { sortDatasetsByYear(); activeDs = 0; }
+  if (fromCache > 0) {
     bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
-    lbl.textContent = `組み込みデータ ${datasets.length} 件を読み込みました`;
-    setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
+    lbl.textContent = `キャッシュから ${fromCache} 件を表示（バックグラウンドで最新確認中…）`;
+    setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 600);
+    renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL();
   }
 
-  // キャッシュヒットがなかった場合のみここで初期描画
-  if (fromCache === 0) {
-    renderTabs();
-    updateDsInfo();
-    rebuildDrilldown();
-    updateCacheBar();
-    ptRestoreFromURL();
-  } else {
-    updateCacheBar();
-  }
+  // ── フェーズ2: ネットワークfetch（ミス分を先に、残りをバックグラウンドで）──
+  const fetchSecond = entries.filter(e => !missedEntries.includes(e));
+  const fetchMissTotal = missedEntries.length;
+  let fetchMissLoaded = 0, updatedCount = 0;
+
+  const doFetch = async (entry, isBg) => {
+    const { cacheKey, fetchUrl } = entry;
+    try {
+      const res = await fetch(fetchUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const freshData = await res.json();
+      await cachePut(cacheKey, freshData).catch(() => {});
+      let changed = false;
+      normalizeData(freshData).forEach(ds => {
+        if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
+          const ex = datasets.findIndex(d => d.label === ds.label);
+          if (ex >= 0) { datasets[ex] = ds; changed = true; }
+          else { datasets.push(ds); addedCount++; changed = true; }
+        }
+      });
+      if (!isBg) {
+        fetchMissLoaded++;
+        const pct = Math.round(fetchMissLoaded / Math.max(fetchMissTotal,1) * 90);
+        bar.style.width = pct + '%'; if(pctEl) pctEl.textContent = pct + '%';
+        lbl.textContent = `${fetchMissLoaded} / ${fetchMissTotal} ファイル読み込み中…`;
+      } else if (changed) { updatedCount++; }
+    } catch(e) { console.warn(`fetch失敗 [${cacheKey}]:`, e.message); }
+  };
+
+  await Promise.allSettled(missedEntries.map(e => doFetch(e, false)));
+  if (addedCount > 0 || missedEntries.length > 0) { sortDatasetsByYear(); activeDs = 0; }
+  if (missedEntries.length > 0) { renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL(); }
+
+  Promise.allSettled(fetchSecond.map(e => doFetch(e, true))).then(() => {
+    if (updatedCount > 0) { sortDatasetsByYear(); renderTabs(); updateDsInfo(); rebuildDrilldown(); }
+  });
+
+  bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
+  lbl.textContent = `${datasets.length} 件のデータを読み込みました`;
+  setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 800);
+
+  if (fromCache === 0) { renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL(); }
+  else { updateCacheBar(); }
 })();
 
 async function updateCacheBar() {
   try {
     const keys = await cacheKeys();
-    const jsonKeys = keys.filter(k => typeof k === 'string' && (k.includes('json/') || k.startsWith('rtdb:') || k.startsWith('fb:')));
+    const jsonKeys = keys.filter(k => typeof k === 'string' && k.startsWith('gh:'));
     const bar = $('cacheBar'), info = $('cacheInfo');
     if (!bar || !info) return;
     if (jsonKeys.length > 0) {
       info.textContent = `▸ CACHE: ${jsonKeys.length} ファイルをキャッシュ済み`;
       bar.style.display = 'flex';
-    } else {
-      bar.style.display = 'none';
-    }
-  } catch(e) { /* IndexedDB 非対応環境ではスキップ */ }
+    } else { bar.style.display = 'none'; }
+  } catch(e) {}
 }
 
 async function clearCache() {
   try {
     const keys = await cacheKeys();
-    const jsonKeys = keys.filter(k => typeof k === 'string' && (k.includes('json/') || k.startsWith('rtdb:') || k.startsWith('fb:')));
+    const jsonKeys = keys.filter(k => typeof k === 'string' && k.startsWith('gh:'));
     await Promise.all(jsonKeys.map(k => cacheDelete(k)));
     const bar = $('cacheBar');
     if (bar) bar.style.display = 'none';
     showStatus('ok', `✓ キャッシュを削除しました（${jsonKeys.length} ファイル）。次回ロード時に再取得します。`);
-  } catch(e) {
-    showStatus('err', 'キャッシュ削除に失敗しました: ' + e.message);
-  }
+  } catch(e) { showStatus('err', 'キャッシュ削除に失敗しました: ' + e.message); }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2733,7 +2558,7 @@ function ptFill(d, ds){
 
       tr.innerHTML=`
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);font-size:11px;color:var(--text-dim);white-space:nowrap">${tax1}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);font-size:12px;${isTotal||isSubtotal?'font-weight:700;color:var(--text-bright);':''}">${row.label||''}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);font-size:12px;${isTotal||isSubtotal?'font-weight:700;color:var(--text-bright);':''}">${(row.label||"").replace(/^[\s　]+/,"")}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;${amtStyle}">${amt!=null?amt.toLocaleString('ja-JP'):'―'}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:11px;color:var(--text-dim)">${pct!=null?pct+'%':'―'}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2)">
