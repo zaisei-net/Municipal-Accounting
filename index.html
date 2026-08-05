@@ -595,7 +595,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
                 <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">構成比</th>
                 <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);min-width:90px">構成比バー</th>
                 <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">超過課税額（千円）</th>
-                <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">超過税率</th>
+                <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">超過税率/税額</th>
               </tr>
             </thead>
             <tbody id="pt_taxTbody"></tbody>
@@ -2590,8 +2590,14 @@ function ptFill(d, ds){
       const isSubtotal= tax1==='小計';
       const isSummary = isTotal||isSubtotal;
 
-      // 超過税率 = 超過課税額 ÷ 収入済額
-      const exRate = (amt&&ex) ? (ex/amt*100).toFixed(2)+'%' : (ex?'(金額なし)':'―');
+      // 超過税率/税額表示: +○.○%  +○○○円（円部分はデータ未接続）
+      let exCell;
+      if (ex != null && ex !== 0) {
+        const ratePart = (amt && amt !== 0) ? `+${(ex/amt*100).toFixed(1)}%` : '―';
+        exCell = `<span style="color:var(--accent);font-weight:600">${ratePart}</span>&ensp;<span style="color:var(--text-dim)">―円</span>`;
+      } else {
+        exCell = `<span style="color:var(--text-dim)">―</span>`;
+      }
 
       // バー幅
       const bw = maxAmt>0&&amt ? (amt/maxAmt*100).toFixed(1) : '0';
@@ -2623,7 +2629,7 @@ function ptFill(d, ds){
           </div>
         </td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;${exStyle}">${ex!=null&&ex!==0?ex.toLocaleString('ja-JP'):'―'}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;${ex?'color:var(--accent);':''}">${isSummary?'':exRate}</td>`;
+        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;white-space:nowrap">${isSummary?'':exCell}</td>`;
       tbody.appendChild(tr);
     });
 
