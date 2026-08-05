@@ -525,7 +525,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       </div>
       <div class="table-scroll">
         <table class="detail-table" id="taxTable">
-          <thead><tr><th>税区分</th><th>税目・細目</th><th>収入済額</th><th>構成比</th><th style="min-width:100px">構成比バー</th><th>超過課税分</th></tr></thead>
+          <thead><tr><th>税区分</th><th>税目・細目</th><th>収入済額</th><th>超過課税分</th><th>構成比</th><th style="min-width:100px">構成比バー</th></tr></thead>
           <tbody id="taxTbody"></tbody>
         </table>
       </div>
@@ -2043,9 +2043,9 @@ function showData(muniName) {
       const pctDisp=row.pct!=null?row.pct:(totAmt>0&&row.amount!=null?+(row.amount/totAmt*100).toFixed(1):null);
       tb.innerHTML+=`<tr class="${isTotal?'total':isSub?'subtotal':''}">
         <td>${row.tax1||''}</td><td>${row.label.replace(/^[\s　]+/,"")}</td><td>${fmt(row.amount)}</td>
+        <td>${fmt(row.extra_tax)}</td>
         <td>${pctDisp!=null?pctDisp+'%':'―'}</td>
         <td><div class="pct-bar-wrap"><div class="pct-bar-track"><div class="pct-bar-fill orange" style="width:${bw.toFixed(1)}%"></div></div></div></td>
-        <td>${fmt(row.extra_tax)}</td>
       </tr>`;
     });
     const taxLabel = ds.prefecture==='全国（都道府県）' ? '道府県税' : '市町村税';
