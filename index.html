@@ -517,7 +517,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
 
     <!-- ── TAX PANE ── -->
     <div class="result-pane" id="pane-tax">
-      <div class="sec-title">市町村税の状況（千円・％）</div>
+      <div class="sec-title" id="taxSecTitle">市町村税の状況（千円・％）</div>
       <!-- 円グラフ -->
       <div id="taxChartWrap" style="display:flex;align-items:center;gap:24px;margin-bottom:20px;flex-wrap:wrap">
         <canvas id="taxPieCanvas" width="400" height="400" style="flex-shrink:0;width:200px;height:200px"></canvas>
@@ -581,7 +581,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       </div>
 
       <!-- 市町村税入力 -->
-      <div class="sec-title">市町村税 MUNICIPAL TAX <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（自動引き込み・上書き可）</span></div>
+      <div class="sec-title" id="ptTaxSecTitle">市町村税 MUNICIPAL TAX <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（自動引き込み・上書き可）</span></div>
 
       <!-- 動的テーブル：tax_detailがある場合はここに全税目を展開 -->
       <div id="pt_taxTableWrap" style="display:none;margin-bottom:16px">
@@ -686,9 +686,9 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       <!-- 自動集計（常時表示） -->
       <div class="data-card" style="margin-bottom:16px">
         <div class="dc-head">自動集計</div>
-        <div class="dr"><span class="dr-label">市町村税 合計</span><span class="dr-val neu" id="pt_taxTotal">―</span></div>
+        <div class="dr"><span class="dr-label" id="ptTaxTotalLabel">市町村税 合計</span><span class="dr-val neu" id="pt_taxTotal">―</span></div>
         <div class="dr"><span class="dr-label">超過課税額 合計</span><span class="dr-val pos" id="pt_extraTotal">―</span></div>
-        <div class="dr"><span class="dr-label">超過課税率（超過課税 ÷ 市町村税合計）</span><span class="dr-val pos" id="pt_extraRate">―</span></div>
+        <div class="dr"><span class="dr-label" id="ptExtraRateLabel">超過課税率（超過課税 ÷ 市町村税合計）</span><span class="dr-val pos" id="pt_extraRate">―</span></div>
         <div class="dr"><span class="dr-label">目的税 合計</span><span class="dr-val" id="pt_purposeTotal">―</span></div>
       </div>
 
@@ -706,7 +706,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
             </span>
           </div>
           <div class="dr"><span class="dr-label">削減率（÷歳出）</span><span class="dr-val" id="pt_r1_exp" style="color:#6d28d9">―</span></div>
-          <div class="dr"><span class="dr-label">税収比率（÷市町村税）</span><span class="dr-val" id="pt_r1_tax" style="color:#6d28d9">―</span></div>
+          <div class="dr"><span class="dr-label" id="ptR1TaxLabel">税収比率（÷市町村税）</span><span class="dr-val" id="pt_r1_tax" style="color:#6d28d9">―</span></div>
           <div class="dr"><span class="dr-label">超過課税で賄える割合</span><span class="dr-val" id="pt_r1_cov" style="color:#6d28d9">―</span></div>
         </div>
         <!-- Plan 2 -->
@@ -720,7 +720,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
             </span>
           </div>
           <div class="dr"><span class="dr-label">削減率（÷歳出）</span><span class="dr-val" id="pt_r2_exp" style="color:#be185d">―</span></div>
-          <div class="dr"><span class="dr-label">税収比率（÷市町村税）</span><span class="dr-val" id="pt_r2_tax" style="color:#be185d">―</span></div>
+          <div class="dr"><span class="dr-label" id="ptR2TaxLabel">税収比率（÷市町村税）</span><span class="dr-val" id="pt_r2_tax" style="color:#be185d">―</span></div>
           <div class="dr"><span class="dr-label">超過課税で賄える割合</span><span class="dr-val" id="pt_r2_cov" style="color:#be185d">―</span></div>
         </div>
       </div>
@@ -731,7 +731,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
         <div class="dc-head">▸ SUMMARY</div>
         <div class="dr"><span class="dr-label">自治体・年度</span><span class="dr-val neu" id="pt_sum_id">―</span></div>
         <div class="dr"><span class="dr-label">歳出総額</span><span class="dr-val neu" id="pt_sum_exp">―</span></div>
-        <div class="dr"><span class="dr-label">市町村税合計</span><span class="dr-val neu" id="pt_sum_tax">―</span></div>
+        <div class="dr"><span class="dr-label" id="ptSumTaxLabel">市町村税合計</span><span class="dr-val neu" id="pt_sum_tax">―</span></div>
         <div class="dr"><span class="dr-label">超過課税合計</span><span class="dr-val" id="pt_sum_extra">―</span></div>
         <div class="dr"><span class="dr-label">プラン１　削減率</span><span class="dr-val" id="pt_sum_r1" style="color:#6d28d9">―</span></div>
         <div class="dr"><span class="dr-label">プラン２　削減率</span><span class="dr-val" id="pt_sum_r2" style="color:#be185d">―</span></div>
@@ -1623,7 +1623,7 @@ async function fetchWithCache(url) {
 }
 
 // ── 税目ドーナツチャート ──────────────────────────────────
-function renderTaxPie(taxDetail) {
+function renderTaxPie(taxDetail, taxLabel) {
   // 実税目のみ（小計・合計・うち純固定資産税 を除く）
   const rows = taxDetail.filter(r =>
     r.tax1 !== '小計' && r.tax1 !== '合計' &&
@@ -1692,7 +1692,7 @@ function renderTaxPie(taxDetail) {
   ctx.font = "bold 11px 'Noto Sans JP', sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('市町村税', cx, cy - 8);
+  ctx.fillText(taxLabel||'市町村税', cx, cy - 8);
   ctx.fillText('内訳', cx, cy + 8);
 
   // 凡例
@@ -2048,7 +2048,10 @@ function showData(muniName) {
         <td>${fmt(row.extra_tax)}</td>
       </tr>`;
     });
-    renderTaxPie(d.tax_detail);
+    const taxLabel = ds.prefecture==='全国（都道府県）' ? '道府県税' : '市町村税';
+    $('tab-tax').textContent = taxLabel;
+    $('taxSecTitle').textContent = taxLabel+'の状況（千円・％）';
+    renderTaxPie(d.tax_detail, taxLabel);
   }
 
   // ── Employees ──
@@ -2554,6 +2557,14 @@ function ptRestoreFromURL(){
 // 自治体データを減税計画シートへ自動引き込み
 // ──────────────────────────────────────────
 function ptFill(d, ds){
+  const isPref = ds.prefecture === '全国（都道府県）';
+  const tl = isPref ? '道府県税' : '市町村税';
+  const te = isPref ? 'PREFECTURAL TAX' : 'MUNICIPAL TAX';
+  const ptTST=$('ptTaxSecTitle'); if(ptTST) ptTST.firstChild.textContent=tl+' '+te+' ';
+  [['ptTaxTotalLabel',tl+' 合計'],['ptExtraRateLabel','超過課税率（超過課税 ÷ '+tl+'合計）'],
+   ['ptR1TaxLabel','税収比率（÷'+tl+'）'],['ptR2TaxLabel','税収比率（÷'+tl+'）'],
+   ['ptSumTaxLabel',tl+'合計']].forEach(([id,txt])=>{ const el=$( id); if(el) el.textContent=txt; });
+
   ptSet('pt_muni', d.name||'');
   ptSet('pt_fy',   ds.fiscal_year ? fyLabel(ds.fiscal_year) : ds.label||'');
   ptSet('pt_exp',  d.expenditure!=null ? d.expenditure : '');
