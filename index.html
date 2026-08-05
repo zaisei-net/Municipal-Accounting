@@ -1650,15 +1650,33 @@ async function cacheGet(key) {
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readonly');
     const req = tx.objectStore(STORE).get(key);
-    req.onsuccess = e => res(e.target.result ?? null);
-    req.onerror   = e => rej(e.target.error);
+    req.onsuccess = e => {
+      const v = e.target.result;
+      if (v === undefined || v === null) { res(null); return; }
+      res((v && typeof v === 'object' && '__v' in v) ? v.__v : v);
+    };
+    req.onerror = e => rej(e.target.error);
+  });
+}
+async function cacheGetFull(key) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(key);
+    req.onsuccess = e => {
+      const v = e.target.result;
+      if (v === undefined || v === null) { res({ data: null, ts: 0 }); return; }
+      if (v && typeof v === 'object' && '__v' in v) res({ data: v.__v, ts: v.__t || 0 });
+      else res({ data: v, ts: 0 }); // 旧形式: stale扱い
+    };
+    req.onerror = e => rej(e.target.error);
   });
 }
 async function cachePut(key, value) {
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(value, key);
+    tx.objectStore(STORE).put({ __v: value, __t: Date.now() }, key);
     tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
   });
 }
@@ -2348,20 +2366,24 @@ function normalizeData(raw) {
   const entries = buildGitHubEntries();
   const total = entries.length;
   let fromCache = 0, addedCount = 0;
+  const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24時間
 
   // ── フェーズ1: キャッシュから即時表示 ──────────────────────
-  const cacheResults = await Promise.allSettled(entries.map(({cacheKey}) => cacheGet(cacheKey)));
-  const missedEntries = [];
+  const cacheResults = await Promise.allSettled(entries.map(({cacheKey}) => cacheGetFull(cacheKey)));
+  const missedEntries = [], staleEntries = [];
 
   cacheResults.forEach((r, i) => {
-    if (r.status === 'fulfilled' && r.value !== null) {
+    const { data, ts } = r.status === 'fulfilled' ? r.value : { data: null, ts: 0 };
+    if (data !== null) {
       fromCache++;
-      normalizeData(r.value).forEach(ds => {
+      normalizeData(data).forEach(ds => {
         if (ds?.municipalities && Object.keys(ds.municipalities).length > 0) {
           const ex = datasets.findIndex(d => d.label === ds.label);
           if (ex >= 0) datasets[ex] = ds; else { datasets.push(ds); addedCount++; }
         }
       });
+      if (!ts || (Date.now() - ts) >= CACHE_TTL_MS) staleEntries.push(entries[i]);
+      // 24時間以内のキャッシュはGitHubリクエスト不要
     } else {
       missedEntries.push(entries[i]);
     }
@@ -2370,13 +2392,14 @@ function normalizeData(raw) {
   if (addedCount > 0) { sortDatasetsByYear(); activeDs = 0; }
   if (fromCache > 0) {
     bar.style.width = '100%'; if(pctEl) pctEl.textContent = '100%';
-    lbl.textContent = `キャッシュから ${fromCache} 件を表示（バックグラウンドで最新確認中…）`;
+    const staleMsg = staleEntries.length > 0 ? `（バックグラウンドで ${staleEntries.length} 件更新中…）` : '（最新）';
+    lbl.textContent = `キャッシュから ${fromCache} 件を表示 ${staleMsg}`;
     setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; if(pctEl) pctEl.textContent='0%'; }, 600);
     renderTabs(); updateDsInfo(); rebuildDrilldown(); updateCacheBar(); ptRestoreFromURL();
   }
 
-  // ── フェーズ2: ネットワークfetch（ミス分を先に、残りをバックグラウンドで）──
-  const fetchSecond = entries.filter(e => !missedEntries.includes(e));
+  // ── フェーズ2: ネットワークfetch（ミス分を先に、古いキャッシュはバックグラウンドで）──
+  const fetchSecond = staleEntries; // 24時間超のキャッシュのみ更新
   const fetchMissTotal = missedEntries.length;
   let fetchMissLoaded = 0, updatedCount = 0;
 
