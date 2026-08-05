@@ -2745,9 +2745,16 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   const totAmt = totRow ? (totRow.amount || 0) : 0;
   const cl = s => (s||'').replace(/^[\s　]+/, '');
 
-  // ① 超過課税の廃止
+  // ①②③⑤⑥の対象パターン（①③で利用するため先に定義）
+  const _s4pat = /水利地益税|都市計画税/;
+  const _s5pat = /狩猟税|入湯税|事業所税/;
+  const _s6pat = /均等割|所得割|法人税割/;
+  // extra_taxを除いた標準税率分 amount（①廃止後の⑥⑦計算基準）
+  const stdAmt = r => Math.max(0, (r.amount||0) - (r.extra_tax||0));
+
+  // ① 超過課税の廃止（⑤対象=入湯税等は⑤で全額廃止対象のため除外）
   gpSec(container,'gp_s1','①','超過課税の廃止',null,'check',null,
-    items.filter(r => r.extra_tax > 0)
+    items.filter(r => (r.extra_tax||0) > 0 && !_s5pat.test(r.label||''))
          .map(r => ({ label:cl(r.label), amount:r.extra_tax })));
 
   // ② 法定外税の廃止（GAIZEI_NAME で具体的税目名を表示）
@@ -2759,11 +2766,6 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
            return { label: specific || cl(r.label||r.tax1), amount: r.amount,
                     note: specific ? cl(r.label||r.tax1) : null };
          }));
-
-  // ④⑤⑥の対象税目（③から除外するため先に定義）
-  const _s4pat = /水利地益税|都市計画税/;
-  const _s5pat = /狩猟税|入湯税|事業所税/;
-  const _s6pat = /均等割|所得割|法人税割/;
 
   // ③ 赤字税・不採算税の廃止（④⑤⑥対象税目は除外して重複計上を防ぐ）
   const sec3Items = items.filter(r =>
@@ -2798,16 +2800,16 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
      nyut&&{label:'入湯税',  amount:nyut.amount},
      jims&&{label:'事業所税',amount:jims.amount}].filter(Boolean));
 
-  // ⑥ 住民税の引下げ
+  // ⑥ 住民税の引下げ（base は超過課税廃止後の標準税率分）
   const s6 = items.filter(r => _s6pat.test(r.label||'') && !/法定外/.test(r.label||''));
   gpSec(container,'gp_s6','⑥',tl+'民税（住民税）の引下げ',null,'pct-select',10,
-    s6.map(r => ({label:cl(r.label), amount:r.amount})));
+    s6.map(r => ({label:cl(r.label), amount:stdAmt(r)})));
 
-  // ⑦ その他普通税の引下げ（③で廃止対象になった税目は除外して重複計上を防ぐ）
+  // ⑦ その他普通税の引下げ（③廃止対象を除外、base は超過課税廃止後の標準税率分）
   const s6set = new Set(s6);
   gpSec(container,'gp_s7','⑦','その他の普通税の引下げ',null,'pct-select',10,
     items.filter(r => /普通税/.test(r.tax1||'') && !/法定外/.test(r.label||'') && !s6set.has(r) && !sec3set.has(r))
-         .map(r => ({label:cl(r.label), amount:r.amount})));
+         .map(r => ({label:cl(r.label), amount:stdAmt(r)})));
 
   $('gp_wrap').style.display='';
   const p1r=$('gp_p1_row');  if(p1r) p1r.style.display='none';
