@@ -2610,7 +2610,7 @@ function buildGenzeiPlan(taxDetail, exp, isPref) {
   // ④ 法定任意目的税（水利地益税・都市計画税）
   const suiri = items.find(r => /水利地益税/.test(r.label||''));
   const tosei = items.find(r => /都市計画税/.test(r.label||'') && !/法定外/.test(r.tax1||''));
-  gpSec(container,'gp_s4','④',tl+'法定任意目的税の廃止','水利地益税・都市計画税','check',null,
+  gpSec(container,'gp_s4','④','法定任意目的税の廃止（市町村）','水利地益税・都市計画税','check',null,
     [suiri&&{label:'水利地益税',amount:suiri.amount},
      tosei&&{label:'都市計画税',amount:tosei.amount}].filter(Boolean));
 
