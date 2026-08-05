@@ -97,6 +97,10 @@ h1 em{color:var(--accent);font-style:normal;}
 .dd-select option{background:var(--surface2);color:var(--text-bright);}
 .dd-arrow{font-size:20px;color:var(--border);padding-bottom:10px;flex-shrink:0;}
 @media(max-width:560px){.dd-arrow{display:none;}.dd-col{flex:1 1 100%;}}
+.sel-tabs{display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border);}
+.sel-tab{background:none;border:1px solid transparent;border-bottom:none;padding:6px 18px;font-size:11px;letter-spacing:2px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;color:var(--text-dim);border-radius:3px 3px 0 0;position:relative;bottom:-1px;transition:color .15s;}
+.sel-tab.active{border-color:var(--border);background:var(--surface);color:var(--accent);border-bottom-color:var(--surface);}
+.sel-tab:hover:not(.active){color:var(--text-bright);}
 .toggle-search-btn{background:none;border:none;font-size:11px;color:var(--text-dim);font-family:'Noto Sans JP',sans-serif;letter-spacing:1px;cursor:pointer;padding:0;transition:color .15s;}
 .toggle-search-btn:hover{color:var(--accent);}
 
@@ -329,43 +333,60 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
 <div class="dataset-panel" id="datasetPanel">
 
 
-  <!-- ドリルダウン選択 + テキスト検索 -->
+  <!-- SELECT画面 -->
   <div class="search-section">
-    <span class="search-label">▸ SELECT MUNICIPALITY</span>
+    <span class="search-label">▸ SELECT</span>
 
-    <!-- 3段ドリルダウン -->
-    <div class="drilldown-row" id="drilldownRow">
-      <div class="dd-col">
-        <div class="dd-label">都道府県</div>
-        <select id="ddPref" class="dd-select" onchange="ddOnPref()">
-          <option value="">-- 選択 --</option>
-        </select>
-      </div>
-      <div class="dd-arrow">›</div>
-      <div class="dd-col" style="flex:2">
-        <div class="dd-label">市区町村</div>
-        <select id="ddMuni" class="dd-select" onchange="ddOnMuni()" disabled>
-          <option value="">-- 選択 --</option>
-        </select>
-      </div>
-      <div class="dd-arrow">›</div>
-      <div class="dd-col">
-        <div class="dd-label">年度</div>
-        <select id="ddYear" class="dd-select" onchange="ddOnYear()" disabled>
-          <option value="">-- 選択 --</option>
-        </select>
+    <!-- タブ -->
+    <div class="sel-tabs">
+      <button class="sel-tab active" id="selTabMuni" onclick="selSwitchTab('muni')">市町村</button>
+      <button class="sel-tab" id="selTabPref" onclick="selSwitchTab('pref')">都道府県</button>
+    </div>
+
+    <!-- 市町村タブ -->
+    <div id="selPanelMuni">
+      <div class="drilldown-row" id="drilldownRow">
+        <div class="dd-col">
+          <div class="dd-label">都道府県</div>
+          <select id="ddPref" class="dd-select" onchange="ddOnPref()">
+            <option value="">-- 選択 --</option>
+          </select>
+        </div>
+        <div class="dd-arrow">›</div>
+        <div class="dd-col" style="flex:2">
+          <div class="dd-label">市区町村</div>
+          <select id="ddMuni" class="dd-select" onchange="ddOnMuni()" disabled>
+            <option value="">-- 選択 --</option>
+          </select>
+        </div>
+        <div class="dd-arrow">›</div>
+        <div class="dd-col">
+          <div class="dd-label">年度</div>
+          <select id="ddYear" class="dd-select" onchange="ddOnYear()" disabled>
+            <option value="">-- 選択 --</option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <!-- 都道府県カード（折りたたみ・明示クリックで展開） -->
-    <div id="prefCardTrigger" style="display:none;margin-top:10px">
-      <button id="prefCardToggleBtn" onclick="togglePrefCard()" style="background:none;border:1px solid rgba(26,95,138,.3);color:var(--accent2);font-family:'Noto Sans JP',sans-serif;font-size:11px;letter-spacing:1px;padding:5px 12px;border-radius:3px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(26,95,138,.08)'" onmouseout="this.style.background='none'">▶ 都道府県カードを見る</button>
-      <div id="prefCardRow" style="display:none;margin-top:8px;padding:10px 14px;background:rgba(26,95,138,.06);border:1px solid rgba(26,95,138,.2);border-radius:3px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-size:11px;letter-spacing:2px;color:var(--accent2);font-family:'Noto Sans JP',sans-serif;white-space:nowrap">都道府県カード</span>
-          <select id="ddPrefYear" class="dd-select" onchange="ddOnPrefYear()" style="flex:1;min-width:140px">
+    <!-- 都道府県タブ -->
+    <div id="selPanelPref" style="display:none">
+      <div class="drilldown-row">
+        <div class="dd-col" style="flex:2">
+          <div class="dd-label">都道府県</div>
+          <select id="ddPrefPref" class="dd-select" onchange="ddOnPrefPref()">
+            <option value="">-- 選択 --</option>
+          </select>
+        </div>
+        <div class="dd-arrow">›</div>
+        <div class="dd-col">
+          <div class="dd-label">年度</div>
+          <select id="ddPrefYear" class="dd-select" onchange="ddOnPrefYear()" disabled>
             <option value="">-- 年度を選択 --</option>
           </select>
+        </div>
+        <div class="dd-col" style="flex:none">
+          <div class="dd-label" style="visibility:hidden">_</div>
           <button onclick="ddShowPrefCard()" style="padding:8px 16px;background:var(--accent2);color:#fff;border:none;border-radius:3px;font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;white-space:nowrap">表示</button>
         </div>
       </div>
@@ -1353,15 +1374,18 @@ function ddClearMuni() {
   const m = $('ddMuni');
   m.innerHTML = '<option value="">-- 市区町村を選択 --</option>'; m.disabled = true;
   ddClearYear();
-  const t=$('prefCardTrigger'),r=$('prefCardRow'),b=$('prefCardToggleBtn');
-  if(t)t.style.display='none';
-  if(r)r.style.display='none';
-  if(b)b.textContent='▶ 都道府県カードを見る';
 }
 function ddClearYear() {
   const y = $('ddYear');
   y.innerHTML = '<option value="">-- 年度を選択 --</option>'; y.disabled = true;
   $('results').style.display = 'none';
+}
+
+function selSwitchTab(tab) {
+  $('selPanelMuni').style.display = tab === 'muni' ? '' : 'none';
+  $('selPanelPref').style.display = tab === 'pref' ? '' : 'none';
+  $('selTabMuni').classList.toggle('active', tab === 'muni');
+  $('selTabPref').classList.toggle('active', tab === 'pref');
 }
 
 // 都道府県：全データセットから収集（都道府県カード専用ノードは除外）
@@ -1372,6 +1396,14 @@ function ddBuildPref(selPref) {
       .map(dsPrefKey).filter(Boolean)
   )]);
   ddSetOpts($('ddPref'), prefs, '-- 都道府県を選択 --', selPref);
+  // 都道府県タブ用
+  const prefPrefs = sortPrefs([...new Set(
+    datasets
+      .filter(d => d.prefecture === '全国（都道府県）')
+      .flatMap(d => Object.keys(d.municipalities || {}))
+  )]);
+  const ppEl = $('ddPrefPref');
+  if (ppEl) ddSetOpts(ppEl, prefPrefs.length ? prefPrefs : prefs, '-- 都道府県を選択 --', '');
   if ($('ddPref').value) ddBuildMuni($('ddPref').value, '');
   else ddClearMuni();
 }
@@ -1424,35 +1456,37 @@ function ddShowData(pref, muni, year) {
   }
 }
 
-function togglePrefCard() {
-  const row=$('prefCardRow'), btn=$('prefCardToggleBtn');
-  const open = row.style.display === 'none';
-  row.style.display = open ? '' : 'none';
-  if(btn) btn.textContent = open ? '▼ 都道府県カードを閉じる' : '▶ 都道府県カードを見る';
-}
-
-// イベントハンドラ
+// イベントハンドラ（市町村タブ）
 function ddOnPref() {
   const pref = $('ddPref').value;
   ddClearMuni();
   if (!pref) return;
   ddBuildMuni(pref, '');
+}
+
+// イベントハンドラ（都道府県タブ）
+function ddOnPrefPref() {
+  const pref = $('ddPrefPref').value;
+  const yr = $('ddPrefYear');
+  yr.innerHTML = '<option value="">-- 年度を選択 --</option>';
+  yr.disabled = true;
+  if (!pref) return;
   const prefCardDs = datasets.filter(d =>
     d.prefecture === '全国（都道府県）' && d.municipalities?.[pref]
   );
   if (prefCardDs.length > 0) {
     const years = sortYearsDesc(prefCardDs.map(dsYearKey).filter(Boolean));
-    ddSetOpts($('ddPrefYear'), years, '-- 年度を選択 --', years[0], formatYear);
-    $('ddPrefYear').value = years[0];
-    $('prefCardTrigger').style.display = '';
+    ddSetOpts(yr, years, '-- 年度を選択 --', years[0], formatYear);
+    yr.value = years[0];
+    yr.disabled = false;
   }
 }
 function ddOnPrefYear() {
-  const pref = $('ddPref').value, year = $('ddPrefYear').value;
+  const pref = $('ddPrefPref').value, year = $('ddPrefYear').value;
   if (pref && year) ddShowData('全国（都道府県）', pref, year);
 }
 function ddShowPrefCard() {
-  const pref = $('ddPref').value, year = $('ddPrefYear').value;
+  const pref = $('ddPrefPref').value, year = $('ddPrefYear').value;
   if (pref && year) ddShowData('全国（都道府県）', pref, year);
 }
 function ddOnMuni() {
