@@ -357,14 +357,17 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       </div>
     </div>
 
-    <!-- 都道府県カード選択行 -->
-    <div id="prefCardRow" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(26,95,138,.06);border:1px solid rgba(26,95,138,.2);border-radius:3px">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:11px;letter-spacing:2px;color:var(--accent2);font-family:'Noto Sans JP',sans-serif;white-space:nowrap">都道府県カード</span>
-        <select id="ddPrefYear" class="dd-select" onchange="ddOnPrefYear()" style="flex:1;min-width:140px">
-          <option value="">-- 年度を選択 --</option>
-        </select>
-        <button onclick="ddShowPrefCard()" style="padding:8px 16px;background:var(--accent2);color:#fff;border:none;border-radius:3px;font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;white-space:nowrap">表示</button>
+    <!-- 都道府県カード（折りたたみ・明示クリックで展開） -->
+    <div id="prefCardTrigger" style="display:none;margin-top:10px">
+      <button id="prefCardToggleBtn" onclick="togglePrefCard()" style="background:none;border:1px solid rgba(26,95,138,.3);color:var(--accent2);font-family:'Noto Sans JP',sans-serif;font-size:11px;letter-spacing:1px;padding:5px 12px;border-radius:3px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(26,95,138,.08)'" onmouseout="this.style.background='none'">▶ 都道府県カードを見る</button>
+      <div id="prefCardRow" style="display:none;margin-top:8px;padding:10px 14px;background:rgba(26,95,138,.06);border:1px solid rgba(26,95,138,.2);border-radius:3px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:11px;letter-spacing:2px;color:var(--accent2);font-family:'Noto Sans JP',sans-serif;white-space:nowrap">都道府県カード</span>
+          <select id="ddPrefYear" class="dd-select" onchange="ddOnPrefYear()" style="flex:1;min-width:140px">
+            <option value="">-- 年度を選択 --</option>
+          </select>
+          <button onclick="ddShowPrefCard()" style="padding:8px 16px;background:var(--accent2);color:#fff;border:none;border-radius:3px;font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;white-space:nowrap">表示</button>
+        </div>
       </div>
     </div>
 
@@ -1350,6 +1353,10 @@ function ddClearMuni() {
   const m = $('ddMuni');
   m.innerHTML = '<option value="">-- 市区町村を選択 --</option>'; m.disabled = true;
   ddClearYear();
+  const t=$('prefCardTrigger'),r=$('prefCardRow'),b=$('prefCardToggleBtn');
+  if(t)t.style.display='none';
+  if(r)r.style.display='none';
+  if(b)b.textContent='▶ 都道府県カードを見る';
 }
 function ddClearYear() {
   const y = $('ddYear');
@@ -1417,22 +1424,27 @@ function ddShowData(pref, muni, year) {
   }
 }
 
+function togglePrefCard() {
+  const row=$('prefCardRow'), btn=$('prefCardToggleBtn');
+  const open = row.style.display === 'none';
+  row.style.display = open ? '' : 'none';
+  if(btn) btn.textContent = open ? '▼ 都道府県カードを閉じる' : '▶ 都道府県カードを見る';
+}
+
 // イベントハンドラ
 function ddOnPref() {
   const pref = $('ddPref').value;
   ddClearMuni();
-  const prefCardRow = $('prefCardRow');
-  if (prefCardRow) prefCardRow.style.display = 'none';
   if (!pref) return;
   ddBuildMuni(pref, '');
   const prefCardDs = datasets.filter(d =>
     d.prefecture === '全国（都道府県）' && d.municipalities?.[pref]
   );
-  if (prefCardDs.length > 0 && prefCardRow) {
+  if (prefCardDs.length > 0) {
     const years = sortYearsDesc(prefCardDs.map(dsYearKey).filter(Boolean));
     ddSetOpts($('ddPrefYear'), years, '-- 年度を選択 --', years[0], formatYear);
     $('ddPrefYear').value = years[0];
-    prefCardRow.style.display = '';
+    $('prefCardTrigger').style.display = '';
   }
 }
 function ddOnPrefYear() {
