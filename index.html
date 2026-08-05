@@ -2032,13 +2032,16 @@ function showData(muniName) {
   $('tab-tax').style.display = hasTax?'':'none';
   if (hasTax) {
     const maxT=Math.max(...d.tax_detail.map(r=>r.amount||0));
+    const totRow=d.tax_detail.find(r=>r.tax1==='合計');
+    const totAmt=totRow?.amount||0;
     const tb=$('taxTbody'); tb.innerHTML='';
     d.tax_detail.forEach(row=>{
       const isTotal=row.tax1==='合計'; const isSub=row.tax1==='小計';
       const bw=maxT>0?(row.amount||0)/maxT*100:0;
+      const pctDisp=row.pct!=null?row.pct:(totAmt>0&&row.amount!=null?+(row.amount/totAmt*100).toFixed(1):null);
       tb.innerHTML+=`<tr class="${isTotal?'total':isSub?'subtotal':''}">
         <td>${row.tax1||''}</td><td>${row.label.replace(/^[\s　]+/,"")}</td><td>${fmt(row.amount)}</td>
-        <td>${row.pct!=null?row.pct+'%':'―'}</td>
+        <td>${pctDisp!=null?pctDisp+'%':'―'}</td>
         <td><div class="pct-bar-wrap"><div class="pct-bar-track"><div class="pct-bar-fill orange" style="width:${bw.toFixed(1)}%"></div></div></div></td>
         <td>${fmt(row.extra_tax)}</td>
       </tr>`;
@@ -2559,13 +2562,15 @@ function ptFill(d, ds){
     $('pt_taxFallback').style.display='none';
 
     const maxAmt = Math.max(...d.tax_detail.map(r=>r.amount||0));
+    const ptTotRow = d.tax_detail.find(r=>r.tax1==='合計');
+    const ptTotAmt = ptTotRow?.amount||0;
     const tbody  = $('pt_taxTbody');
     tbody.innerHTML='';
 
     d.tax_detail.forEach(row=>{
       const amt  = row.amount;
       const ex   = row.extra_tax;
-      const pct  = row.pct;
+      const pct  = row.pct!=null?row.pct:(ptTotAmt>0&&row.amount!=null?+(row.amount/ptTotAmt*100).toFixed(1):null);
       const tax1 = row.tax1||'';
 
       const isTotal   = tax1==='合計';
