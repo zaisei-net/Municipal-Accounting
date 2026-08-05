@@ -2673,7 +2673,8 @@ function buildGenzeiPlan(taxDetail, exp, isPref) {
   if (!container) return;
   container.innerHTML = '';
 
-  const items = taxDetail.filter(r => r.tax1 !== '合計' && r.tax1 !== '小計' && r.amount > 0);
+  // 「うち○○」のサブ行は計算対象外（親税目と重複するため）
+  const items = taxDetail.filter(r => r.tax1 !== '合計' && r.tax1 !== '小計' && r.amount > 0 && !/^うち/.test(r.label||''));
   const totRow = taxDetail.find(r => r.tax1 === '合計');
   const totAmt = totRow ? (totRow.amount || 0) : 0;
   const cl = s => (s||'').replace(/^[\s　]+/, '');
@@ -2688,41 +2689,53 @@ function buildGenzeiPlan(taxDetail, exp, isPref) {
     items.filter(r => /法定外/.test(r.label||''))
          .map(r => ({ label:cl(r.label||r.tax1), amount:r.amount })));
 
-  // ③ 赤字税・不採算税の廃止
+  // ④⑤⑥の対象税目（③から除外するため先に定義）
+  const _s4pat = /水利地益税|都市計画税/;
+  const _s5pat = /狩猟税|入湯税|事業所税/;
+  const _s6pat = /均等割|所得割|法人税割/;
+
+  // ③ 赤字税・不採算税の廃止（④⑤⑥対象税目は除外して重複計上を防ぐ）
+  const sec3Items = items.filter(r =>
+    !/法定外/.test(r.label||'') &&
+    !_s4pat.test(r.label||'') && !_s5pat.test(r.label||'') && !_s6pat.test(r.label||'') &&
+    (r.amount<=500||(totAmt>0&&r.amount/totAmt*100<=0.1)));
   gpSec(container,'gp_s3','③','赤字税・不採算税の廃止','50万円以下 / 構成比0.1%以下','check',null,
-    items.filter(r => !/法定外/.test(r.label||'') && (r.amount<=500||(totAmt>0&&r.amount/totAmt*100<=0.1)))
-         .map(r => {
-           const rs=[];
-           if(r.amount<=500) rs.push('50万円以下');
-           if(totAmt>0&&r.amount/totAmt*100<=0.1) rs.push('構成比'+(r.amount/totAmt*100).toFixed(2)+'%');
-           return {label:cl(r.label), amount:r.amount, note:rs.join(' / ')};
-         }));
+    sec3Items.map(r => {
+      const rs=[];
+      if(r.amount<=500) rs.push('50万円以下');
+      if(totAmt>0&&r.amount/totAmt*100<=0.1) rs.push('構成比'+(r.amount/totAmt*100).toFixed(2)+'%');
+      return {label:cl(r.label), amount:r.amount, note:rs.join(' / ')};
+    }));
+  const sec3set = new Set(sec3Items);
 
-  // ④ 法定任意目的税（水利地益税・都市計画税）
-  const suiri = items.find(r => /水利地益税/.test(r.label||''));
-  const tosei = items.find(r => /都市計画税/.test(r.label||'') && !/法定外/.test(r.label||''));
-  gpSec(container,'gp_s4','④','法定任意目的税の廃止（市町村）','水利地益税・都市計画税','check',null,
-    [suiri&&{label:'水利地益税',amount:suiri.amount},
-     tosei&&{label:'都市計画税',amount:tosei.amount}].filter(Boolean));
+  // ④ 法定任意目的税（水利地益税・都市計画税）— 市町村のみ（道府県に法定任意目的税なし・地税法第4条）
+  if (!isPref) {
+    const suiri = items.find(r => /水利地益税/.test(r.label||''));
+    const tosei = items.find(r => /都市計画税/.test(r.label||'') && !/法定外/.test(r.label||''));
+    gpSec(container,'gp_s4','④','法定任意目的税の廃止','水利地益税・都市計画税（地税法第5条第6項）','check',null,
+      [suiri&&{label:'水利地益税',amount:suiri.amount},
+       tosei&&{label:'都市計画税',amount:tosei.amount}].filter(Boolean));
+  }
 
-  // ⑤ 法定目的税（狩猟税・入湯税・事業所税）
+  // ⑤ 法定目的税（道府県: 狩猟税のみ 第4条第4項 / 市町村: 入湯税・事業所税 第5条第4・5項）
   const kary  = items.find(r => /狩猟税/.test(r.label||''));
   const nyut  = items.find(r => /入湯税/.test(r.label||'') && !/法定外/.test(r.label||''));
   const jims  = items.find(r => /事業所税/.test(r.label||'') && !/法定外/.test(r.label||''));
-  gpSec(container,'gp_s5','⑤','法定目的税の税率引下げ・廃止','狩猟税・入湯税・事業所税','check-select',50,
+  const s5sub = isPref ? '狩猟税（地税法第4条第4項）' : '入湯税・事業所税（地税法第5条第4・5項）';
+  gpSec(container,'gp_s5','⑤','法定目的税の税率引下げ・廃止',s5sub,'check-select',50,
     [kary&&{label:'狩猟税',  amount:kary.amount, forceAbol:true},
      nyut&&{label:'入湯税',  amount:nyut.amount},
      jims&&{label:'事業所税',amount:jims.amount}].filter(Boolean));
 
   // ⑥ 住民税の引下げ
-  const s6 = items.filter(r => /均等割|所得割|法人税割/.test(r.label||'') && !/法定外/.test(r.label||''));
+  const s6 = items.filter(r => _s6pat.test(r.label||'') && !/法定外/.test(r.label||''));
   gpSec(container,'gp_s6','⑥',tl+'民税（住民税）の引下げ',null,'pct-select',10,
     s6.map(r => ({label:cl(r.label), amount:r.amount})));
 
-  // ⑦ その他普通税の引下げ
+  // ⑦ その他普通税の引下げ（③で廃止対象になった税目は除外して重複計上を防ぐ）
   const s6set = new Set(s6);
   gpSec(container,'gp_s7','⑦','その他の普通税の引下げ',null,'pct-select',10,
-    items.filter(r => /普通税/.test(r.tax1||'') && !/法定外/.test(r.label||'') && !s6set.has(r))
+    items.filter(r => /普通税/.test(r.tax1||'') && !/法定外/.test(r.label||'') && !s6set.has(r) && !sec3set.has(r))
          .map(r => ({label:cl(r.label), amount:r.amount})));
 
   $('gp_wrap').style.display='';
