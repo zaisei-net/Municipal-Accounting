@@ -683,6 +683,18 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
         </div>
       </div>
 
+      <!-- 減税計画シート 自動作成 (tax_detail連動) -->
+      <div id="gp_wrap" style="display:none">
+        <div class="sec-title" style="margin-top:8px">減税計画 REDUCTION PLAN <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（チェックで自動集計）</span></div>
+        <div id="gp_container" style="margin-bottom:12px"></div>
+        <div class="data-card full" style="margin-bottom:16px;border-top:2px solid var(--accent2)">
+          <div class="dc-head" style="color:var(--accent2)">▸ 合計削減計画</div>
+          <div class="dr"><span class="dr-label">合計削減額（千円）</span><span class="dr-val pos" id="gp_result_total">―</span></div>
+          <div class="dr"><span class="dr-label">歳出総額（千円）</span><span class="dr-val neu" id="gp_result_exp">―</span></div>
+          <div class="dr"><span class="dr-label">必要歳出削減率（÷歳出）</span><span class="dr-val pos" id="gp_result_rate">―</span></div>
+        </div>
+      </div>
+
       <!-- 自動集計（常時表示） -->
       <div class="data-card" style="margin-bottom:16px">
         <div class="dc-head">自動集計</div>
@@ -698,12 +710,16 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
         <!-- Plan 1 -->
         <div class="data-card" style="border-top:2px solid #6d28d9">
           <div class="dc-head" style="color:#6d28d9">PLAN 1　減税プラン１</div>
-          <div class="dr">
+          <div class="dr" id="gp_p1_row">
             <span class="dr-label">必要額 <span style="color:var(--danger);font-size:10px">*</span></span>
             <span style="display:flex;align-items:center;gap:4px">
               <input type="number" id="pt_p1amt" style="width:140px;font-size:12px;padding:5px 8px" placeholder="0" min="0" oninput="ptCalc()">
               <span style="font-size:10px;color:var(--text-dim)">千円</span>
             </span>
+          </div>
+          <div class="dr" id="gp_p1_auto" style="display:none">
+            <span class="dr-label">必要額</span>
+            <span class="dr-val pos" id="gp_p1_auto_val">―</span>
           </div>
           <div class="dr"><span class="dr-label">削減率（÷歳出）</span><span class="dr-val" id="pt_r1_exp" style="color:#6d28d9">―</span></div>
           <div class="dr"><span class="dr-label" id="ptR1TaxLabel">税収比率（÷市町村税）</span><span class="dr-val" id="pt_r1_tax" style="color:#6d28d9">―</span></div>
@@ -2556,6 +2572,158 @@ function ptRestoreFromURL(){
 // ──────────────────────────────────────────
 // 自治体データを減税計画シートへ自動引き込み
 // ──────────────────────────────────────────
+// ── 減税計画 自動作成 ───────────────────────────────────────
+let _gp_exp = 0;
+
+function buildGenzeiPlan(taxDetail, exp, isPref) {
+  _gp_exp = exp || 0;
+  const tl = isPref ? '道府県' : '市町村';
+  const container = $('gp_container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const items = taxDetail.filter(r => r.tax1 !== '合計' && r.tax1 !== '小計' && r.amount > 0);
+  const totRow = taxDetail.find(r => r.tax1 === '合計');
+  const totAmt = totRow ? (totRow.amount || 0) : 0;
+  const cl = s => (s||'').replace(/^[\s　]+/, '');
+
+  // ① 超過課税の廃止
+  gpSec(container,'gp_s1','①','超過課税の廃止',null,'check',null,
+    items.filter(r => r.extra_tax > 0)
+         .map(r => ({ label:cl(r.label), amount:r.extra_tax })));
+
+  // ② 法定外税の廃止
+  gpSec(container,'gp_s2','②','法定外税の廃止',null,'check',null,
+    items.filter(r => /法定外/.test(r.tax1||''))
+         .map(r => ({ label:cl(r.label||r.tax1), amount:r.amount })));
+
+  // ③ 赤字税・不採算税の廃止
+  gpSec(container,'gp_s3','③','赤字税・不採算税の廃止','50万円以下 / 構成比0.1%以下','check',null,
+    items.filter(r => !/法定外/.test(r.tax1||'') && (r.amount<=500||(totAmt>0&&r.amount/totAmt*100<=0.1)))
+         .map(r => {
+           const rs=[];
+           if(r.amount<=500) rs.push('50万円以下');
+           if(totAmt>0&&r.amount/totAmt*100<=0.1) rs.push('構成比'+(r.amount/totAmt*100).toFixed(2)+'%');
+           return {label:cl(r.label), amount:r.amount, note:rs.join(' / ')};
+         }));
+
+  // ④ 法定任意目的税（水利地益税・都市計画税）
+  const suiri = items.find(r => /水利地益税/.test(r.label||''));
+  const tosei = items.find(r => /都市計画税/.test(r.label||'') && !/法定外/.test(r.tax1||''));
+  gpSec(container,'gp_s4','④',tl+'法定任意目的税の廃止','水利地益税・都市計画税','check',null,
+    [suiri&&{label:'水利地益税',amount:suiri.amount},
+     tosei&&{label:'都市計画税',amount:tosei.amount}].filter(Boolean));
+
+  // ⑤ 法定目的税（狩猟税・入湯税・事業所税）
+  const kary  = items.find(r => /狩猟税/.test(r.label||''));
+  const nyut  = items.find(r => /入湯税/.test(r.label||'') && !/法定外/.test(r.tax1||''));
+  const jims  = items.find(r => /事業所税/.test(r.label||'') && !/法定外/.test(r.tax1||''));
+  gpSec(container,'gp_s5','⑤','法定目的税の税率引下げ・廃止','狩猟税・入湯税・事業所税','check-select',50,
+    [kary&&{label:'狩猟税',  amount:kary.amount, forceAbol:true},
+     nyut&&{label:'入湯税',  amount:nyut.amount},
+     jims&&{label:'事業所税',amount:jims.amount}].filter(Boolean));
+
+  // ⑥ 住民税の引下げ
+  const s6 = items.filter(r => /均等割|所得割|法人税割/.test(r.label||'') && !/法定外/.test(r.tax1||''));
+  gpSec(container,'gp_s6','⑥',tl+'民税（住民税）の引下げ',null,'pct-select',10,
+    s6.map(r => ({label:cl(r.label), amount:r.amount})));
+
+  // ⑦ その他普通税の引下げ
+  const s6set = new Set(s6);
+  gpSec(container,'gp_s7','⑦','その他の普通税の引下げ',null,'pct-select',10,
+    items.filter(r => /普通税/.test(r.tax1||'') && !/法定外/.test(r.tax1||'') && !s6set.has(r))
+         .map(r => ({label:cl(r.label), amount:r.amount})));
+
+  $('gp_wrap').style.display='';
+  const p1r=$('gp_p1_row');  if(p1r) p1r.style.display='none';
+  const p1a=$('gp_p1_auto'); if(p1a) p1a.style.display='';
+  gpCalc();
+}
+
+function gpSec(container, id, num, title, subtitle, type, defPct, items) {
+  const D=(t,s)=>Object.assign(document.createElement(t),{style:s||''});
+  const wrap=D('div','border:1px solid var(--border);border-radius:3px;margin-bottom:8px;overflow:hidden');
+  const head=D('div','display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--surface3);'+(items.length?'border-bottom:1px solid var(--border)':''));
+
+  const numEl=D('span','font-size:14px;font-weight:700;color:var(--accent);flex-shrink:0;width:22px;text-align:center');
+  numEl.textContent=num; head.appendChild(numEl);
+
+  const tWrap=D('div','flex:1;min-width:0');
+  const tEl=D('div','font-size:12px;font-weight:600;color:'+(items.length?'var(--text-bright)':'var(--text-dim)'));
+  tEl.textContent=title; tWrap.appendChild(tEl);
+  if(subtitle&&items.length){const s=D('div','font-size:10px;color:var(--text-dim);margin-top:2px');s.textContent=subtitle;tWrap.appendChild(s);}
+  head.appendChild(tWrap);
+
+  if(type==='pct-select'&&items.length){
+    const sel=D('select','font-size:11px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:2px;cursor:pointer');
+    sel.id=id+'_pct'; sel.onchange=gpCalc;
+    [5,10,20,30,50].forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p+'%引下げ';if(p===(defPct||10))o.selected=true;sel.appendChild(o);});
+    head.appendChild(sel);
+  }
+
+  const totEl=D('span','font-size:11px;font-family:"Noto Sans JP",sans-serif;color:var(--accent2);font-weight:700;white-space:nowrap');
+  totEl.id=id+'_total'; totEl.textContent=items.length?'―':'（該当なし）';
+  head.appendChild(totEl); wrap.appendChild(head);
+
+  if(items.length){
+    const body=D('div','');
+    items.forEach((item,i)=>{
+      const row=D('div','display:flex;align-items:center;gap:8px;padding:7px 14px;'+(i<items.length-1?'border-bottom:1px solid var(--border2)':''));
+      const cb=D('input','cursor:pointer'); cb.type='checkbox'; cb.checked=true;
+      cb.id=id+'_cb_'+i; cb.className=id+'-cb'; cb.dataset.amount=item.amount||0; cb.onchange=gpCalc;
+      const lbl=D('label','flex:1;font-size:12px;color:var(--text);cursor:pointer');
+      lbl.htmlFor=cb.id; lbl.textContent=item.label;
+      if(item.note){const n=D('span','font-size:10px;color:var(--text-dim);margin-left:6px');n.textContent='（'+item.note+'）';lbl.appendChild(n);}
+      row.appendChild(cb); row.appendChild(lbl);
+      if(type==='check-select'){
+        const sel=D('select','font-size:11px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:2px;cursor:pointer');
+        sel.id=id+'_sel_'+i; sel.className=id+'-sel'; sel.onchange=gpCalc;
+        if(item.forceAbol){sel.disabled=true;const o=document.createElement('option');o.value='100';o.textContent='廃止';sel.appendChild(o);}
+        else{[['100','廃止'],['50','50%引下げ'],['30','30%引下げ'],['20','20%引下げ'],['10','10%引下げ']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;if(v===String(defPct||50))o.selected=true;sel.appendChild(o);});}
+        row.appendChild(sel);
+      }
+      const amtEl=D('span','font-size:11px;font-family:"Noto Sans JP",sans-serif;color:var(--text-dim);white-space:nowrap;min-width:80px;text-align:right');
+      amtEl.id=id+'_disp_'+i; amtEl.textContent=fmt(item.amount)+' 千円'; row.appendChild(amtEl);
+      body.appendChild(row);
+    });
+    wrap.appendChild(body);
+  }
+  container.appendChild(wrap);
+}
+
+function gpCalc(){
+  const exp = ptN('pt_exp') || _gp_exp;
+  let grand=0;
+  [['gp_s1','check'],['gp_s2','check'],['gp_s3','check'],['gp_s4','check'],
+   ['gp_s5','check-select'],['gp_s6','pct-select'],['gp_s7','pct-select']].forEach(([id,type])=>{
+    let sec=0;
+    const cbs=document.querySelectorAll('.'+id+'-cb');
+    cbs.forEach((cb,i)=>{
+      if(!cb.checked) return;
+      const base=Number(cb.dataset.amount)||0;
+      let red=base;
+      if(type==='check-select'){
+        const sel=$(id+'_sel_'+i); red=sel?Math.round(base*Number(sel.value)/100):base;
+        const d=$(id+'_disp_'+i); if(d) d.textContent=fmt(red)+' 千円';
+      } else if(type==='pct-select'){
+        const pSel=$(id+'_pct'); const pct=pSel?Number(pSel.value):10;
+        red=Math.round(base*pct/100);
+        const d=$(id+'_disp_'+i); if(d) d.textContent=fmt(red)+' 千円';
+      }
+      sec+=red;
+    });
+    grand+=sec;
+    const totEl=$(id+'_total');
+    if(totEl&&cbs.length) totEl.textContent=fmt(sec)+' 千円';
+  });
+  ptSpan('gp_result_total', grand ? fmt(grand)+' 千円' : '―');
+  ptSpan('gp_result_exp',   exp   ? fmt(exp)+' 千円'   : '―');
+  const rate=grand&&exp?grand/exp*100:null;
+  ptSpan('gp_result_rate',  rate!=null?rate.toFixed(2)+'%':'―');
+  ptSpan('gp_p1_auto_val',  grand ? fmt(grand)+' 千円' : '―');
+  const p1=$('pt_p1amt'); if(p1){p1.value=grand||''; ptCalc();}
+}
+
 function ptFill(d, ds){
   const isPref = ds.prefecture === '全国（都道府県）';
   const tl = isPref ? '道府県税' : '市町村税';
@@ -2633,10 +2801,15 @@ function ptFill(d, ds){
       tbody.appendChild(tr);
     });
 
+    buildGenzeiPlan(d.tax_detail, d.expenditure, isPref);
+
   } else {
     // ── フォールバック：手動入力モード ──
     $('pt_taxTableWrap').style.display='none';
     $('pt_taxFallback').style.display='';
+    const gpW=$('gp_wrap');   if(gpW) gpW.style.display='none';
+    const p1r=$('gp_p1_row'); if(p1r) p1r.style.display='';
+    const p1a=$('gp_p1_auto');if(p1a) p1a.style.display='none';
 
     ptSet('pt_t1', ''); ptSet('pt_e1','');
     ptSet('pt_t2', ''); ptSet('pt_e2','');
