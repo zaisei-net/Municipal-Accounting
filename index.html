@@ -2438,6 +2438,12 @@ function normalizeData(raw) {
         const pct = Math.round(fetchMissLoaded / Math.max(fetchMissTotal,1) * 90);
         bar.style.width = pct + '%'; if(pctEl) pctEl.textContent = pct + '%';
         lbl.textContent = `${fetchMissLoaded} / ${fetchMissTotal} ファイル読み込み中… ${mbDL} MB 取得済（${speedStr}）`;
+        // ファイルが届くたびに段階的に表示（最初のファイルで即表示）
+        if (changed) {
+          sortDatasetsByYear();
+          renderTabs(); updateDsInfo(); rebuildDrilldown();
+          if (fetchMissLoaded === 1) { updateCacheBar(); ptRestoreFromURL(); }
+        }
       } else if (changed) { updatedCount++; }
     } catch(e) { console.warn(`fetch失敗 [${cacheKey}]:`, e.message); }
   };
