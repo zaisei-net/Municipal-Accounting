@@ -2685,12 +2685,12 @@ function buildGenzeiPlan(taxDetail, exp, isPref) {
 
   // ② 法定外税の廃止
   gpSec(container,'gp_s2','②','法定外税の廃止',null,'check',null,
-    items.filter(r => /法定外/.test(r.tax1||''))
+    items.filter(r => /法定外/.test(r.label||''))
          .map(r => ({ label:cl(r.label||r.tax1), amount:r.amount })));
 
   // ③ 赤字税・不採算税の廃止
   gpSec(container,'gp_s3','③','赤字税・不採算税の廃止','50万円以下 / 構成比0.1%以下','check',null,
-    items.filter(r => !/法定外/.test(r.tax1||'') && (r.amount<=500||(totAmt>0&&r.amount/totAmt*100<=0.1)))
+    items.filter(r => !/法定外/.test(r.label||'') && (r.amount<=500||(totAmt>0&&r.amount/totAmt*100<=0.1)))
          .map(r => {
            const rs=[];
            if(r.amount<=500) rs.push('50万円以下');
@@ -2700,29 +2700,29 @@ function buildGenzeiPlan(taxDetail, exp, isPref) {
 
   // ④ 法定任意目的税（水利地益税・都市計画税）
   const suiri = items.find(r => /水利地益税/.test(r.label||''));
-  const tosei = items.find(r => /都市計画税/.test(r.label||'') && !/法定外/.test(r.tax1||''));
+  const tosei = items.find(r => /都市計画税/.test(r.label||'') && !/法定外/.test(r.label||''));
   gpSec(container,'gp_s4','④','法定任意目的税の廃止（市町村）','水利地益税・都市計画税','check',null,
     [suiri&&{label:'水利地益税',amount:suiri.amount},
      tosei&&{label:'都市計画税',amount:tosei.amount}].filter(Boolean));
 
   // ⑤ 法定目的税（狩猟税・入湯税・事業所税）
   const kary  = items.find(r => /狩猟税/.test(r.label||''));
-  const nyut  = items.find(r => /入湯税/.test(r.label||'') && !/法定外/.test(r.tax1||''));
-  const jims  = items.find(r => /事業所税/.test(r.label||'') && !/法定外/.test(r.tax1||''));
+  const nyut  = items.find(r => /入湯税/.test(r.label||'') && !/法定外/.test(r.label||''));
+  const jims  = items.find(r => /事業所税/.test(r.label||'') && !/法定外/.test(r.label||''));
   gpSec(container,'gp_s5','⑤','法定目的税の税率引下げ・廃止','狩猟税・入湯税・事業所税','check-select',50,
     [kary&&{label:'狩猟税',  amount:kary.amount, forceAbol:true},
      nyut&&{label:'入湯税',  amount:nyut.amount},
      jims&&{label:'事業所税',amount:jims.amount}].filter(Boolean));
 
   // ⑥ 住民税の引下げ
-  const s6 = items.filter(r => /均等割|所得割|法人税割/.test(r.label||'') && !/法定外/.test(r.tax1||''));
+  const s6 = items.filter(r => /均等割|所得割|法人税割/.test(r.label||'') && !/法定外/.test(r.label||''));
   gpSec(container,'gp_s6','⑥',tl+'民税（住民税）の引下げ',null,'pct-select',10,
     s6.map(r => ({label:cl(r.label), amount:r.amount})));
 
   // ⑦ その他普通税の引下げ
   const s6set = new Set(s6);
   gpSec(container,'gp_s7','⑦','その他の普通税の引下げ',null,'pct-select',10,
-    items.filter(r => /普通税/.test(r.tax1||'') && !/法定外/.test(r.tax1||'') && !s6set.has(r))
+    items.filter(r => /普通税/.test(r.tax1||'') && !/法定外/.test(r.label||'') && !s6set.has(r))
          .map(r => ({label:cl(r.label), amount:r.amount})));
 
   $('gp_wrap').style.display='';
