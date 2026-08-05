@@ -592,10 +592,10 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
                 <th style="text-align:left;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">税区分</th>
                 <th style="text-align:left;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border)">税目・細目</th>
                 <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">収入済額（千円）</th>
-                <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">構成比</th>
-                <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);min-width:90px">構成比バー</th>
                 <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">超過課税額（千円）</th>
                 <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">超過税率/税額</th>
+                <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);white-space:nowrap">構成比</th>
+                <th style="text-align:right;padding:7px 12px;background:var(--surface3);color:var(--text-dim);font-size:10px;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);min-width:90px">構成比バー</th>
               </tr>
             </thead>
             <tbody id="pt_taxTbody"></tbody>
@@ -2622,14 +2622,14 @@ function ptFill(d, ds){
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);font-size:11px;color:var(--text-dim);white-space:nowrap">${tax1}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);font-size:12px;${isTotal||isSubtotal?'font-weight:700;color:var(--text-bright);':''}">${(row.label||"").replace(/^[\s　]+/,"")}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;${amtStyle}">${amt!=null?amt.toLocaleString('ja-JP'):'―'}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;${exStyle}">${ex!=null&&ex!==0?ex.toLocaleString('ja-JP'):'―'}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;white-space:nowrap">${isSummary?'':exCell}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:11px;color:var(--text-dim)">${pct!=null?pct+'%':'―'}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border2)">
           <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;min-width:40px">
             <div style="height:100%;width:${bw}%;border-radius:2px;background:var(--accent2)"></div>
           </div>
-        </td>
-        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;${exStyle}">${ex!=null&&ex!==0?ex.toLocaleString('ja-JP'):'―'}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid var(--border2);text-align:right;font-family:'Noto Sans JP',sans-serif;font-size:12px;white-space:nowrap">${isSummary?'':exCell}</td>`;
+        </td>`;
       tbody.appendChild(tr);
     });
 
