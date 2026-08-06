@@ -2795,7 +2795,8 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   }
 
   // ⑤ 法定目的税（道府県: 狩猟税のみ 第4条第4項 / 市町村: 入湯税・事業所税 第5条第4・5項）
-  const kary  = items.find(r => /狩猟税/.test(r.label||''));
+  // 狩猟税は tax1='小計' で格納されるため taxDetail 全体から検索（items フィルタを迂回）
+  const kary  = taxDetail.find(r => /狩猟税/.test(r.label||'') && (r.amount||0) > 0);
   const nyut  = items.find(r => /入湯税/.test(r.label||'') && !/法定外/.test(r.label||''));
   const jims  = items.find(r => /事業所税/.test(r.label||'') && !/法定外/.test(r.label||''));
   const s5sub = isPref ? '狩猟税（地税法第4条第4項）' : '入湯税・事業所税（地税法第5条第4・5項）';
