@@ -2740,7 +2740,8 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   container.innerHTML = '';
 
   // 「うち○○」のサブ行は計算対象外（親税目と重複するため）
-  const items = taxDetail.filter(r => r.tax1 !== '合計' && r.tax1 !== '小計' && r.amount > 0 && !/^うち/.test(r.label||''));
+  // tax1='普通税'かつlabel='目的税'の行はJSONパーサーが目的税計を誤って普通税として読み込んだもの
+  const items = taxDetail.filter(r => r.tax1 !== '合計' && r.tax1 !== '小計' && r.amount > 0 && !/^うち/.test(r.label||'') && !(r.tax1 === '普通税' && /^目的税$/.test((r.label||'').trim())));
   const totRow = taxDetail.find(r => r.tax1 === '合計');
   const totAmt = totRow ? (totRow.amount || 0) : 0;
   const cl = s => (s||'').replace(/^[\s　]+/, '');
