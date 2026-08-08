@@ -743,11 +743,9 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       </div>
 
       <!-- 減税プラン -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;margin-bottom:12px">
-        <div class="sec-title" style="margin:0">減税プラン</div>
-        <button onclick="ptAddPlan()" id="pt_addPlanBtn" title="プランを追加（最大5件）" style="font-size:10px;padding:5px 12px;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;letter-spacing:1px" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">＋ プランを追加</button>
-      </div>
-      <div id="pt_plansContainer" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:20px"></div>
+      <div class="sec-title" style="margin-top:4px;margin-bottom:0">減税プラン</div>
+      <div class="result-tab-bar" id="pt_tabBar" style="margin-top:8px;margin-bottom:16px"></div>
+      <div id="pt_planContent" style="margin-bottom:20px"></div>
 
       <!-- サマリー＋バー -->
       <div class="sec-title">▶ 計画サマリー</div>
@@ -2535,10 +2533,8 @@ const PT_LABELS = ['プラン１','プラン２','プラン３','プラン４','
 const PT_JA     = ['プラン１','プラン２','プラン３','プラン４','プラン５'];
 const PT_EX     = ['例：超過課税の廃止','例：均等割の廃止','例：固定資産税引下げ','例：法人税割廃止','例：目的税廃止'];
 const PT_MAX    = 5;
-let _ptPlans = [
-  {name:'',mode:'manual',amount:0,selected:[]},
-  {name:'',mode:'manual',amount:0,selected:[]}
-];
+let _ptPlans = [{name:'',amount:0},{name:'',amount:0}];
+let _ptActiveIdx = 0;
 let _ptTaxLabel = '市町村税';
 
 // 動的テーブルから税額・超過額を集計
@@ -2556,135 +2552,104 @@ function ptReadDynamic(){
   return {taxTot, extraTot, purposeTot};
 }
 
-// 選択可能な税目行を取得
-function ptGetTaxRows(){
-  const rows=[];
-  document.querySelectorAll('#pt_taxTbody tr[data-taxtype]').forEach(tr=>{
-    if(tr.dataset.summary==='1') return;
-    const amt=parseFloat(tr.dataset.amount)||0;
-    if(amt<=0) return;
-    const tds=tr.querySelectorAll('td');
-    const label=((tds[1]?.textContent||'').trim()||(tds[0]?.textContent||'').trim());
-    const ex=parseFloat(tr.dataset.extra)||0;
-    rows.push({label,amount:amt,extra:ex});
+function ptSaveCurrentPlan(){
+  if(!_ptPlans[_ptActiveIdx]) return;
+  const nameEl=$('pt_plan_name'); if(nameEl) _ptPlans[_ptActiveIdx].name=nameEl.value;
+  const amtEl =$('pt_plan_amt');  if(amtEl)  _ptPlans[_ptActiveIdx].amount=parseFloat(amtEl.value)||0;
+}
+
+function ptSelectTab(i){
+  ptSaveCurrentPlan();
+  _ptActiveIdx=i;
+  ptRenderPlans();
+  ptCalc();
+}
+
+function ptRenderTabLabels(){
+  const nameEl=$('pt_plan_name');
+  if(nameEl && _ptPlans[_ptActiveIdx]) _ptPlans[_ptActiveIdx].name=nameEl.value;
+  document.querySelectorAll('#pt_tabBar .result-tab[data-planidx]').forEach(tab=>{
+    const j=parseInt(tab.dataset.planidx);
+    tab.textContent=(_ptPlans[j]?.name)||PT_JA[j]||'プラン'+(j+1);
   });
-  return rows;
+  ptCalc();
 }
 
 function ptRenderPlans(){
-  const container=$('pt_plansContainer');
-  if(!container) return;
-  const taxRows=ptGetTaxRows();
-  const hasSel=taxRows.length>0;
-
+  const tabBar=$('pt_tabBar');
+  if(!tabBar) return;
+  tabBar.innerHTML='';
   _ptPlans.forEach((p,i)=>{
-    const nameEl=$('pt_p'+i+'name');
-    if(nameEl) p.name=nameEl.value;
-    if(p.mode==='manual'){
-      const amtEl=$('pt_p'+i+'amt_manual');
-      if(amtEl) p.amount=parseFloat(amtEl.value)||0;
-    }
+    const tab=document.createElement('div');
+    tab.className='result-tab'+(i===_ptActiveIdx?' active':'');
+    tab.dataset.planidx=i;
+    tab.textContent=p.name||PT_JA[i]||'プラン'+(i+1);
+    tab.onclick=()=>ptSelectTab(i);
+    tabBar.appendChild(tab);
   });
-
-  container.innerHTML='';
-  container.style.gridTemplateColumns=_ptPlans.length===1?'minmax(280px,480px)':'repeat(auto-fill,minmax(280px,1fr))';
-
-  _ptPlans.forEach((p,i)=>{
-    const c  = PT_COLORS[i%PT_COLORS.length];
-    const bg = PT_BG[i%PT_BG.length];
-    const bd = PT_BORDER[i%PT_BORDER.length];
-    const selAmt=p.selected.reduce((s,j)=>s+(taxRows[j]?.amount||0),0);
-    const selRows=taxRows.map((r,j)=>`
-      <label style="display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:11px;cursor:pointer;border-bottom:1px solid var(--border2);font-family:'Noto Sans JP',sans-serif">
-        <input type="checkbox" id="pt_chk_${i}_${j}" onchange="ptOnCheck(${i},${j})" ${p.selected.includes(j)?'checked':''} style="cursor:pointer;accent-color:${c};flex-shrink:0">
-        <span style="flex:1;color:var(--text)">${r.label}</span>
-        <span style="color:${c};white-space:nowrap">${r.amount.toLocaleString('ja-JP')} 千円</span>
-      </label>`).join('');
-
-    const div=document.createElement('div');
-    div.className='data-card';
-    div.id='pt_planCard_'+i;
-    div.style.cssText=`border-top:2px solid ${c}`;
-    div.innerHTML=`
-      <div class="dc-head" style="color:${c};display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="white-space:nowrap;font-size:11px;letter-spacing:1px">${PT_LABELS[i]||'PLAN '+(i+1)}</span>
-        <input type="text" id="pt_p${i}name" style="flex:1;min-width:90px;font-size:12px;padding:3px 8px;font-family:'Noto Sans JP',sans-serif;color:${c};border:1px solid ${bd};border-radius:2px;background:${bg}" placeholder="${PT_EX[i]||'プラン名を入力'}" oninput="ptCalc()" value="${(p.name||'').replace(/"/g,'&quot;')}">
-        <button onclick="ptAutoName(${i})" title="プラン名を自動生成" style="font-size:10px;padding:3px 8px;background:${bg};border:1px solid ${bd};color:${c};border-radius:2px;cursor:pointer;white-space:nowrap">自動</button>
-        ${_ptPlans.length>1?`<button onclick="ptRemovePlan(${i})" title="このプランを削除" style="font-size:11px;padding:2px 6px;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:2px;cursor:pointer;line-height:1.2">×</button>`:''}
-      </div>
-      ${hasSel?`
-      <div style="display:flex;gap:6px;padding:8px 12px 4px">
-        <button onclick="ptSetMode(${i},'select')" style="font-size:10px;padding:3px 10px;border-radius:2px;cursor:pointer;border:1px solid ${p.mode==='select'?c:'var(--border)'};background:${p.mode==='select'?bg:'none'};color:${p.mode==='select'?c:'var(--text-dim)'};font-family:'Noto Sans JP',sans-serif;transition:all .15s">選択</button>
-        <button onclick="ptSetMode(${i},'manual')" style="font-size:10px;padding:3px 10px;border-radius:2px;cursor:pointer;border:1px solid ${p.mode==='manual'?c:'var(--border)'};background:${p.mode==='manual'?bg:'none'};color:${p.mode==='manual'?c:'var(--text-dim)'};font-family:'Noto Sans JP',sans-serif;transition:all .15s">手入力</button>
-      </div>`:''}
-      <div id="pt_sel_${i}" style="display:${p.mode==='select'&&hasSel?'block':'none'};max-height:220px;overflow-y:auto;border-top:1px solid var(--border2)">
-        ${selRows||'<div style="padding:10px 12px;font-size:11px;color:var(--text-dim)">税目データがありません</div>'}
-        ${hasSel?`<div id="pt_selAmt_${i}" style="padding:7px 12px;font-size:11px;color:${c};font-family:'Noto Sans JP',sans-serif;border-top:1px solid var(--border2);font-weight:600">小計：${selAmt.toLocaleString('ja-JP')} 千円</div>`:''}
-      </div>
-      <div id="pt_man_${i}" style="display:${p.mode==='manual'||!hasSel?'block':'none'}">
-        <div class="dr">
-          <span class="dr-label">必要額 <span style="color:var(--danger);font-size:10px">*</span></span>
-          <span style="display:flex;align-items:center;gap:4px">
-            <input type="number" id="pt_p${i}amt_manual" style="width:140px;font-size:12px;padding:5px 8px" placeholder="0" min="0" value="${p.mode==='manual'?(p.amount||''):''}" oninput="ptCalc()">
-            <span style="font-size:10px;color:var(--text-dim)">千円</span>
-          </span>
-        </div>
-      </div>
-      <div class="dr"><span class="dr-label">削減率（÷歳出）</span><span class="dr-val" id="pt_r${i}_exp" style="color:${c}">―</span></div>
-      <div class="dr"><span class="dr-label" id="ptR${i}TaxLabel">税収比率（÷${_ptTaxLabel}）</span><span class="dr-val" id="pt_r${i}_tax" style="color:${c}">―</span></div>
-      <div class="dr"><span class="dr-label">超過課税で賄える割合</span><span class="dr-val" id="pt_r${i}_cov" style="color:${c}">―</span></div>
-    `;
-    container.appendChild(div);
-  });
-
-  const addBtn=$('pt_addPlanBtn');
-  if(addBtn) addBtn.style.display=_ptPlans.length>=PT_MAX?'none':'';
-}
-
-function ptOnCheck(i,j){
-  if(!_ptPlans[i]) return;
-  const chk=$('pt_chk_'+i+'_'+j);
-  if(!chk) return;
-  if(chk.checked){
-    if(!_ptPlans[i].selected.includes(j)) _ptPlans[i].selected.push(j);
-  } else {
-    _ptPlans[i].selected=_ptPlans[i].selected.filter(x=>x!==j);
+  if(_ptPlans.length<PT_MAX){
+    const addTab=document.createElement('div');
+    addTab.className='result-tab';
+    addTab.style.cssText='color:var(--text-dim);font-size:11px';
+    addTab.textContent='＋ プランを追加';
+    addTab.onclick=ptAddPlan;
+    tabBar.appendChild(addTab);
   }
-  const taxRows=ptGetTaxRows();
-  const selAmt=_ptPlans[i].selected.reduce((s,jj)=>s+(taxRows[jj]?.amount||0),0);
-  const sub=$('pt_selAmt_'+i);
-  if(sub) sub.textContent='小計：'+selAmt.toLocaleString('ja-JP')+' 千円';
-  ptCalc();
+  const cont=$('pt_planContent');
+  if(!cont) return;
+  const i=_ptActiveIdx;
+  const p=_ptPlans[i];
+  if(!p){ cont.innerHTML=''; return; }
+  const c =PT_COLORS[i%PT_COLORS.length];
+  const bg=PT_BG[i%PT_BG.length];
+  const bd=PT_BORDER[i%PT_BORDER.length];
+  const div=document.createElement('div');
+  div.className='data-card';
+  div.style.cssText=`border-top:2px solid ${c}`;
+  div.innerHTML=`
+    <div class="dc-head" style="color:${c};display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="white-space:nowrap;font-size:11px;letter-spacing:1px">${PT_LABELS[i]||'PLAN '+(i+1)}</span>
+      <input type="text" id="pt_plan_name" style="flex:1;min-width:90px;font-size:12px;padding:3px 8px;font-family:'Noto Sans JP',sans-serif;color:${c};border:1px solid ${bd};border-radius:2px;background:${bg}" placeholder="${PT_EX[i]||'プラン名を入力'}" oninput="ptRenderTabLabels()" value="${(p.name||'').replace(/"/g,'&quot;')}">
+      <button onclick="ptAutoName()" title="プラン名を自動生成" style="font-size:10px;padding:3px 8px;background:${bg};border:1px solid ${bd};color:${c};border-radius:2px;cursor:pointer;white-space:nowrap">自動</button>
+      ${_ptPlans.length>1?`<button onclick="ptRemovePlan()" title="このプランを削除" style="font-size:11px;padding:2px 6px;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:2px;cursor:pointer;line-height:1.2">×</button>`:''}
+    </div>
+    <div class="dr">
+      <span class="dr-label">削減額 <span style="color:var(--danger);font-size:10px">*</span></span>
+      <span style="display:flex;align-items:center;gap:4px">
+        <input type="number" id="pt_plan_amt" style="width:140px;font-size:12px;padding:5px 8px" placeholder="0" min="0" value="${p.amount||''}" oninput="ptCalc()">
+        <span style="font-size:10px;color:var(--text-dim)">千円</span>
+      </span>
+    </div>
+    <div class="dr"><span class="dr-label">削減率（÷歳出）</span><span class="dr-val" id="pt_r_exp" style="color:${c}">―</span></div>
+    <div class="dr"><span class="dr-label" id="pt_r_tax_label">税収比率（÷${_ptTaxLabel}）</span><span class="dr-val" id="pt_r_tax" style="color:${c}">―</span></div>
+    <div class="dr"><span class="dr-label">超過課税で賄える割合</span><span class="dr-val" id="pt_r_cov" style="color:${c}">―</span></div>
+  `;
+  cont.innerHTML='';
+  cont.appendChild(div);
 }
 
 function ptAddPlan(){
   if(_ptPlans.length>=PT_MAX) return;
-  _ptPlans.push({name:'',mode:'manual',amount:0,selected:[]});
+  ptSaveCurrentPlan();
+  _ptPlans.push({name:'',amount:0});
+  _ptActiveIdx=_ptPlans.length-1;
   ptRenderPlans();
   ptCalc();
 }
 
-function ptRemovePlan(i){
+function ptRemovePlan(){
   if(_ptPlans.length<=1) return;
-  _ptPlans.forEach((p,k)=>{
-    const nameEl=$('pt_p'+k+'name'); if(nameEl) p.name=nameEl.value;
-    if(p.mode==='manual'){ const amtEl=$('pt_p'+k+'amt_manual'); if(amtEl) p.amount=parseFloat(amtEl.value)||0; }
-  });
-  _ptPlans.splice(i,1);
-  ptRenderPlans();
-  ptCalc();
-}
-
-function ptSetMode(i,mode){
-  if(!_ptPlans[i]) return;
-  const nameEl=$('pt_p'+i+'name'); if(nameEl) _ptPlans[i].name=nameEl.value;
-  if(_ptPlans[i].mode==='manual'){ const amtEl=$('pt_p'+i+'amt_manual'); if(amtEl) _ptPlans[i].amount=parseFloat(amtEl.value)||0; }
-  _ptPlans[i].mode=mode;
+  ptSaveCurrentPlan();
+  _ptPlans.splice(_ptActiveIdx,1);
+  _ptActiveIdx=Math.min(_ptActiveIdx,_ptPlans.length-1);
   ptRenderPlans();
   ptCalc();
 }
 
 function ptCalc(){
+  const amtEl=$('pt_plan_amt');
+  if(amtEl && _ptPlans[_ptActiveIdx]) _ptPlans[_ptActiveIdx].amount=parseFloat(amtEl.value)||0;
+
   const exp  = ptN('pt_exp');
   const muni = ptS('pt_muni');
   const fy   = ptS('pt_fy');
@@ -2705,19 +2670,12 @@ function ptCalc(){
   ptSpan('pt_extraRate',   taxTot&&extraTot ? (extraTot/taxTot*100).toFixed(2)+'%' : '―');
   ptSpan('pt_purposeTotal',purposeTot? fmt(purposeTot)+' 千円': '―');
 
-  const taxRows=ptGetTaxRows();
-  const planAmts=[];
-
-  _ptPlans.forEach((p,i)=>{
-    const amt = p.mode==='select'
-      ? p.selected.reduce((s,j)=>s+(taxRows[j]?.amount||0),0)
-      : ptN('pt_p'+i+'amt_manual');
-    planAmts.push(amt);
-    const re=ptPct(amt,exp), rt=ptPct(amt,taxTot), rc=ptPct(extraTot,amt);
-    ptSpan('pt_r'+i+'_exp', re!=null?re.toFixed(2)+'%':'―');
-    ptSpan('pt_r'+i+'_tax', rt!=null?rt.toFixed(2)+'%':'―');
-    ptSpan('pt_r'+i+'_cov', rc!=null?rc.toFixed(1) +'%':'―');
-  });
+  const ai=_ptActiveIdx;
+  const actAmt=_ptPlans[ai]?.amount||0;
+  const re=ptPct(actAmt,exp), rt=ptPct(actAmt,taxTot), rc=ptPct(extraTot,actAmt);
+  ptSpan('pt_r_exp', re!=null?re.toFixed(2)+'%':'―');
+  ptSpan('pt_r_tax', rt!=null?rt.toFixed(2)+'%':'―');
+  ptSpan('pt_r_cov', rc!=null?rc.toFixed(1) +'%':'―');
 
   const id=[muni,fy].filter(Boolean).join('　')||'―';
   ptSpan('pt_sum_id',    id);
@@ -2730,24 +2688,24 @@ function ptCalc(){
     sumCont.innerHTML='';
     _ptPlans.forEach((p,i)=>{
       const c=PT_COLORS[i%PT_COLORS.length];
-      const name=ptS('pt_p'+i+'name')||PT_JA[i]||('プラン'+(i+1));
-      const amt=planAmts[i]||0;
-      const re=exp?(amt/exp*100).toFixed(2)+'%':'―';
+      const name=p.name||PT_JA[i]||('プラン'+(i+1));
+      const amt=p.amount||0;
+      const re2=exp?(amt/exp*100).toFixed(2)+'%':'―';
       sumCont.innerHTML+=`
-        <div class="dr"><span class="dr-label" style="color:${c}">${name}　削減率</span><span class="dr-val" style="color:${c}">${re}</span></div>
+        <div class="dr"><span class="dr-label" style="color:${c}">${name}　削減率</span><span class="dr-val" style="color:${c}">${re2}</span></div>
         <div class="dr"><span class="dr-label" style="padding-left:12px;font-size:11px;color:${c}">削減額</span><span class="dr-val" style="color:${c}">${amt?fmt(amt)+' 千円':'―'}</span></div>`;
     });
   }
 
   const vis=$('pt_vis'), barsCont=$('pt_barsContainer');
-  if(exp>0 && planAmts.some(a=>a>0)){
+  if(exp>0 && _ptPlans.some(p=>p.amount>0)){
     vis.style.display='';
     if(barsCont){
       barsCont.innerHTML='';
       _ptPlans.forEach((p,i)=>{
         const c=PT_COLORS[i%PT_COLORS.length];
-        const name=ptS('pt_p'+i+'name')||(PT_LABELS[i]||'PLAN '+(i+1));
-        const amt=planAmts[i]||0;
+        const name=p.name||(PT_LABELS[i]||'PLAN '+(i+1));
+        const amt=p.amount||0;
         const pct=exp?Math.min(100,amt/exp*100):0;
         const pctStr=exp?(amt/exp*100).toFixed(2)+'%':'―';
         const barId='pt_vis_p'+i+'bar';
@@ -2768,7 +2726,8 @@ function ptCalc(){
 }
 
 // ── 減税計画：プラン名自動生成 ────────────────────────────
-function ptAutoName(i){
+function ptAutoName(){
+  const i=_ptActiveIdx;
   const hasDyn = $('pt_taxTableWrap').style.display !== 'none';
   let extraTot=0, taxTot=0;
   if(hasDyn){
@@ -2782,41 +2741,21 @@ function ptAutoName(i){
     taxTot   = ptN('pt_t1')+ptN('pt_t2')+ptN('pt_t3')+ptN('pt_t4');
   }
   const exp = ptN('pt_exp');
-  const p = _ptPlans[i];
-  if(!p) return;
+  const amt = ptN('pt_plan_amt');
 
   let name;
-  if(p.mode==='select'){
-    const taxRows=ptGetTaxRows();
-    const selRows=p.selected.map(j=>taxRows[j]).filter(Boolean);
-    const sorted=[...selRows].sort((a,b)=>(b.amount||0)-(a.amount||0));
-    const topLabels=sorted.slice(0,2).map(r=>r.label).filter(Boolean);
-    const selExtra=selRows.reduce((s,r)=>s+(r.extra||0),0);
-    const selTotal=selRows.reduce((s,r)=>s+(r.amount||0),0);
-    if(selRows.length===0){
-      name=PT_JA[i]||'プラン'+(i+1);
-    } else if(selTotal>0 && selExtra/selTotal>0.85){
-      name='超過課税の廃止';
-    } else if(selRows.length>=3){
-      name=topLabels.join('・')+'等'+selRows.length+'税目減税';
-    } else {
-      name=topLabels.join('・')+'の廃止';
-    }
+  if(extraTot>0 && amt>0 && Math.abs(extraTot-amt)/Math.max(extraTot,amt)<0.15){
+    name='超過課税の廃止';
+  } else if(taxTot>0 && amt>0){
+    name='税収'+(amt/taxTot*100).toFixed(0)+'%削減';
+  } else if(exp>0 && amt>0){
+    name='歳出'+(amt/exp*100).toFixed(0)+'%削減';
   } else {
-    const amt=ptN('pt_p'+i+'amt_manual');
-    if(extraTot>0 && amt>0 && Math.abs(extraTot-amt)/Math.max(extraTot,amt)<0.15){
-      name='超過課税の廃止';
-    } else if(taxTot>0 && amt>0){
-      name='税収'+(amt/taxTot*100).toFixed(0)+'%削減';
-    } else if(exp>0 && amt>0){
-      name='歳出'+(amt/exp*100).toFixed(0)+'%削減';
-    } else {
-      name = PT_JA[i]||'プラン'+(i+1);
-    }
+    name=PT_JA[i]||'プラン'+(i+1);
   }
-  ptSet('pt_p'+i+'name', name);
+  const nameEl=$('pt_plan_name'); if(nameEl) nameEl.value=name;
   if(_ptPlans[i]) _ptPlans[i].name=name;
-  ptCalc();
+  ptRenderTabLabels();
 }
 
 // ── 減税計画：サマリー画像保存 ───────────────────────────
@@ -2844,14 +2783,11 @@ function ptSaveImage(){
   ctx.strokeStyle='#e5e7eb'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(24,116); ctx.lineTo(W-24,116); ctx.stroke();
 
-  const taxRows=ptGetTaxRows();
   let y=142;
   _ptPlans.forEach((p,i)=>{
     const c=PT_COLORS[i%PT_COLORS.length];
-    const name=ptS('pt_p'+i+'name')||(PT_JA[i]||'プラン'+(i+1));
-    const amt=p.mode==='select'
-      ? p.selected.reduce((s,j)=>s+(taxRows[j]?.amount||0),0)
-      : (ptN('pt_p'+i+'amt_manual')||0);
+    const name=p.name||(PT_JA[i]||'プラン'+(i+1));
+    const amt=p.amount||0;
     const exp2=ptN('pt_exp');
     const re=exp2?(amt/exp2*100).toFixed(2)+'%':'―';
 
@@ -2882,11 +2818,8 @@ function ptShare(){
    'pt_t1','pt_e1','pt_t2','pt_e2','pt_t3','pt_e3','pt_t4','pt_e4',
    'pt_p1','pt_p2','pt_p3'
   ].forEach(id=>{ const el=$(id); if(el&&el.value) params.set(id,el.value); });
-  const plansData=_ptPlans.map((p,i)=>({
-    name: ptS('pt_p'+i+'name'), mode: p.mode,
-    amount: p.mode==='manual'?(ptN('pt_p'+i+'amt_manual')||0):0,
-    selected: p.selected
-  }));
+  ptSaveCurrentPlan();
+  const plansData=_ptPlans.map(p=>({name:p.name||'',amount:p.amount||0}));
   params.set('pt_plans', JSON.stringify(plansData));
   params.set('tab','plantax');
   const url=location.href.split('?')[0]+(params.toString()?'?'+params.toString():'');
@@ -2913,10 +2846,8 @@ function ptReset(){
   $('pt_taxTbody').innerHTML='';
   $('pt_taxTableWrap').style.display='none';
   $('pt_taxFallback').style.display='none';
-  _ptPlans=[
-    {name:'',mode:'manual',amount:0,selected:[]},
-    {name:'',mode:'manual',amount:0,selected:[]}
-  ];
+  _ptActiveIdx=0;
+  _ptPlans=[{name:'',amount:0},{name:'',amount:0}];
   ptRenderPlans();
   ptCalc();
 }
@@ -2932,7 +2863,8 @@ function ptRestoreFromURL(){
   if(p.has('pt_plans')){
     try{
       const pd=JSON.parse(p.get('pt_plans'));
-      _ptPlans=pd.map(x=>({name:x.name||'',mode:x.mode||'manual',amount:x.amount||0,selected:x.selected||[]}));
+      _ptPlans=pd.map(x=>({name:x.name||'',amount:x.amount||0}));
+      _ptActiveIdx=0;
     } catch(e){}
   }
   ptRenderPlans();
@@ -3151,10 +3083,10 @@ function gpCalc(){
   ptSpan('gp_result_exp',   exp   ? fmt(exp)+' 千円'   : '―');
   const rate=grand&&exp?grand/exp*100:null;
   ptSpan('gp_result_rate',  rate!=null?rate.toFixed(2)+'%':'―');
-  // gp_ 合計をプラン0（手入力モード時）に自動転記
-  if(_ptPlans && _ptPlans[0] && _ptPlans[0].mode==='manual'){
-    _ptPlans[0].amount = grand || 0;
-    const el=$('pt_p0amt_manual'); if(el){ el.value=grand||''; }
+  // gp_ 合計をアクティブプランに自動転記
+  if(_ptPlans && _ptPlans[_ptActiveIdx]){
+    _ptPlans[_ptActiveIdx].amount = grand || 0;
+    const el=$('pt_plan_amt'); if(el){ el.value=grand||''; }
   }
   ptCalc();
 }
