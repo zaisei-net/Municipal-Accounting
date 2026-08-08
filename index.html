@@ -2792,7 +2792,7 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   if (!isPref) {
     const suiri = items.find(r => /水利地益税/.test(r.label||''));
     const tosei = items.find(r => /都市計画税/.test(r.label||'') && !/法定外/.test(r.label||''));
-    gpSec(container,'gp_s4','④','法定任意目的税の廃止','水利地益税・都市計画税（地税法第5条第6項）','check',null,
+    gpSec(container,'gp_s4','④','法定任意目的税の廃止','水利地益税・都市計画税','check',null,
       [suiri&&{label:'水利地益税',amount:suiri.amount},
        tosei&&{label:'都市計画税',amount:tosei.amount}].filter(Boolean));
   }
@@ -2802,7 +2802,7 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   const kary  = taxDetail.find(r => /狩猟税/.test(r.label||'') && (r.amount||0) > 0);
   const nyut  = items.find(r => /入湯税/.test(r.label||'') && !/法定外/.test(r.label||''));
   const jims  = items.find(r => /事業所税/.test(r.label||'') && !/法定外/.test(r.label||''));
-  const s5sub = isPref ? '狩猟税（地税法第4条第4項）' : '入湯税・事業所税（地税法第5条第4・5項）';
+  const s5sub = isPref ? '狩猟税' : '入湯税・事業所税';
   gpSec(container,'gp_s5','⑤','法定目的税の税率引下げ・廃止',s5sub,'check-select',50,
     [kary&&{label:'狩猟税',  amount:kary.amount, forceAbol:true},
      nyut&&{label:'入湯税',  amount:nyut.amount},
