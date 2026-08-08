@@ -613,6 +613,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       <!-- 減税計画シート 自動作成（先出し） -->
       <div id="gp_wrap" style="display:none">
         <div class="sec-title" style="margin-top:0">減税計画 <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（チェックで自動集計）</span></div>
+        <div class="result-tab-bar" id="pt_tabBar" style="margin-top:4px;margin-bottom:8px"></div>
         <div id="gp_container" style="margin-bottom:12px"></div>
         <div class="data-card full" style="margin-bottom:16px;border-top:2px solid var(--accent2)">
           <div class="dc-head" style="color:var(--accent2)">▸ 合計削減計画</div>
@@ -743,8 +744,6 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       </div>
 
       <!-- 減税プラン -->
-      <div class="sec-title" style="margin-top:4px;margin-bottom:0">減税プラン</div>
-      <div class="result-tab-bar" id="pt_tabBar" style="margin-top:8px;margin-bottom:16px"></div>
       <div id="pt_planContent" style="margin-bottom:20px"></div>
 
       <!-- サマリー＋バー -->
@@ -2559,10 +2558,12 @@ function ptSaveCurrentPlan(){
 }
 
 function ptSelectTab(i){
+  const gpVis=$('gp_wrap').style.display!=='none';
+  if(gpVis) gpSaveState(_ptActiveIdx);
   ptSaveCurrentPlan();
   _ptActiveIdx=i;
-  ptRenderPlans();
-  ptCalc();
+  if(gpVis){ gpRestoreState(i); ptRenderPlans(); gpCalc(); }
+  else { ptRenderPlans(); ptCalc(); }
 }
 
 function ptRenderTabLabels(){
@@ -2630,20 +2631,23 @@ function ptRenderPlans(){
 
 function ptAddPlan(){
   if(_ptPlans.length>=PT_MAX) return;
+  const gpVis=$('gp_wrap').style.display!=='none';
+  if(gpVis) gpSaveState(_ptActiveIdx);
   ptSaveCurrentPlan();
-  _ptPlans.push({name:'',amount:0});
+  _ptPlans.push({name:'',amount:0,gpState:null});
   _ptActiveIdx=_ptPlans.length-1;
-  ptRenderPlans();
-  ptCalc();
+  if(gpVis){ gpRestoreState(_ptActiveIdx); ptRenderPlans(); gpCalc(); }
+  else { ptRenderPlans(); ptCalc(); }
 }
 
 function ptRemovePlan(){
   if(_ptPlans.length<=1) return;
+  const gpVis=$('gp_wrap').style.display!=='none';
   ptSaveCurrentPlan();
   _ptPlans.splice(_ptActiveIdx,1);
   _ptActiveIdx=Math.min(_ptActiveIdx,_ptPlans.length-1);
-  ptRenderPlans();
-  ptCalc();
+  if(gpVis){ gpRestoreState(_ptActiveIdx); ptRenderPlans(); gpCalc(); }
+  else { ptRenderPlans(); ptCalc(); }
 }
 
 function ptCalc(){
@@ -2847,7 +2851,7 @@ function ptReset(){
   $('pt_taxTableWrap').style.display='none';
   $('pt_taxFallback').style.display='none';
   _ptActiveIdx=0;
-  _ptPlans=[{name:'',amount:0},{name:'',amount:0}];
+  _ptPlans=[{name:'',amount:0,gpState:null},{name:'',amount:0,gpState:null}];
   ptRenderPlans();
   ptCalc();
 }
@@ -2889,6 +2893,33 @@ function gpToggleTax(){
 
 // ── 減税計画 自動作成 ───────────────────────────────────────
 let _gp_exp = 0;
+let _gpDefaultState = null;
+
+function gpCaptureState(){
+  const s={};
+  ['gp_s1','gp_s2','gp_s3','gp_s4','gp_s5','gp_s6','gp_s7'].forEach(id=>{
+    s[id+'_cb']  = [...document.querySelectorAll('.'+id+'-cb')].map(cb=>cb.checked);
+    s[id+'_exc'] = [...document.querySelectorAll('.'+id+'-exc')].map(cb=>cb.checked);
+    s[id+'_sel'] = [...document.querySelectorAll('.'+id+'-sel')].map(sel=>sel.value);
+    const pct=$(id+'_pct'); if(pct) s[id+'_pct']=pct.value;
+  });
+  return s;
+}
+
+function gpSaveState(i){
+  if(_ptPlans[i]) _ptPlans[i].gpState=gpCaptureState();
+}
+
+function gpRestoreState(i){
+  const s=_ptPlans[i]?.gpState||_gpDefaultState;
+  if(!s) return;
+  ['gp_s1','gp_s2','gp_s3','gp_s4','gp_s5','gp_s6','gp_s7'].forEach(id=>{
+    if(s[id+'_cb'])  [...document.querySelectorAll('.'+id+'-cb')].forEach((cb,k)=>{ if(k<s[id+'_cb'].length)  cb.checked=s[id+'_cb'][k]; });
+    if(s[id+'_exc']) [...document.querySelectorAll('.'+id+'-exc')].forEach((cb,k)=>{ if(k<s[id+'_exc'].length) cb.checked=s[id+'_exc'][k]; });
+    if(s[id+'_sel']) [...document.querySelectorAll('.'+id+'-sel')].forEach((sel,k)=>{ if(k<s[id+'_sel'].length) sel.value=s[id+'_sel'][k]; });
+    const pct=$(id+'_pct'); if(pct&&s[id+'_pct']!==undefined) pct.value=s[id+'_pct'];
+  });
+}
 
 function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   _gp_exp = exp || 0;
@@ -2896,6 +2927,8 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   const container = $('gp_container');
   if (!container) return;
   container.innerHTML = '';
+  _gpDefaultState = null;
+  _ptPlans.forEach(p => { p.gpState = null; });
 
   // 「うち○○」のサブ行は計算対象外（親税目と重複するため）
   // tax1='普通税'かつlabel='目的税'の行はJSONパーサーが目的税計を誤って普通税として読み込んだもの
@@ -2975,6 +3008,7 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
   const p1r=$('gp_p1_row');  if(p1r) p1r.style.display='none';
   const p1a=$('gp_p1_auto'); if(p1a) p1a.style.display='';
   gpCalc();
+  _gpDefaultState = gpCaptureState();
 }
 
 function gpSec(container, id, num, title, subtitle, type, defPct, items) {
