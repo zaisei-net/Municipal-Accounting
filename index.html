@@ -2788,8 +2788,20 @@ function ptAutoName(i){
   let name;
   if(p.mode==='select'){
     const taxRows=ptGetTaxRows();
-    const sel=p.selected.map(j=>taxRows[j]?.label||'').filter(Boolean);
-    name = sel.length ? sel.slice(0,2).join('・')+'の廃止' : PT_JA[i]||'プラン'+(i+1);
+    const selRows=p.selected.map(j=>taxRows[j]).filter(Boolean);
+    const sorted=[...selRows].sort((a,b)=>(b.amount||0)-(a.amount||0));
+    const topLabels=sorted.slice(0,2).map(r=>r.label).filter(Boolean);
+    const selExtra=selRows.reduce((s,r)=>s+(r.extra||0),0);
+    const selTotal=selRows.reduce((s,r)=>s+(r.amount||0),0);
+    if(selRows.length===0){
+      name=PT_JA[i]||'プラン'+(i+1);
+    } else if(selTotal>0 && selExtra/selTotal>0.85){
+      name='超過課税の廃止';
+    } else if(selRows.length>=3){
+      name=topLabels.join('・')+'等'+selRows.length+'税目減税';
+    } else {
+      name=topLabels.join('・')+'の廃止';
+    }
   } else {
     const amt=ptN('pt_p'+i+'amt_manual');
     if(extraTot>0 && amt>0 && Math.abs(extraTot-amt)/Math.max(extraTot,amt)<0.15){
