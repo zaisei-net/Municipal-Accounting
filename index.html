@@ -582,7 +582,10 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
     <!-- ── 減税計画 PANE ── -->
     <div class="result-pane" id="pane-plantax">
 
-      <div class="sec-title">減税計画 — TAX REDUCTION PLANNING</div>
+      <div class="sec-title">減税計画シート TAX REDUCTION PLANNING WORKSHEET</div>
+
+      <!-- 歳出・税収概要 -->
+      <div class="sec-title" style="margin-top:4px;font-size:10px;letter-spacing:2px;color:var(--text-dim);font-weight:normal;border-top:none;padding-top:0">歳出・税収概要</div>
 
       <!-- 自治体・年度（自動引き込み＋手動上書き可） -->
       <div class="data-grid" style="margin-bottom:16px">
@@ -609,7 +612,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
 
       <!-- 減税計画シート 自動作成（先出し） -->
       <div id="gp_wrap" style="display:none">
-        <div class="sec-title" style="margin-top:0">減税計画 REDUCTION PLAN <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（チェックで自動集計）</span></div>
+        <div class="sec-title" style="margin-top:0">減税計画 <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（チェックで自動集計）</span></div>
         <div id="gp_container" style="margin-bottom:12px"></div>
         <div class="data-card full" style="margin-bottom:16px;border-top:2px solid var(--accent2)">
           <div class="dc-head" style="color:var(--accent2)">▸ 合計削減計画</div>
@@ -622,7 +625,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       <!-- 税収データ（折りたたみ） -->
       <div style="margin-bottom:4px">
         <div class="sec-title" id="ptTaxSecTitle" onclick="gpToggleTax()" style="cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
-          <span>市町村税 MUNICIPAL TAX <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（自動引き込み・上書き可）</span></span>
+          <span>市町村税 MUNICIPAL TAX <span style="font-size:10px;font-family:inherit;letter-spacing:0;color:var(--text-dim);font-weight:normal">（自動引き込み）</span></span>
           <span id="gp_tax_caret" style="font-size:10px;color:var(--text-dim);font-family:inherit;letter-spacing:.5px;font-weight:normal;flex-shrink:0">▶ 税収データを確認</span>
         </div>
         <div id="gp_tax_body" style="display:none">
@@ -740,11 +743,11 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       </div>
 
       <!-- 減税プラン -->
-      <div class="sec-title" style="margin-top:4px">減税プラン REDUCTION PLANS</div>
+      <div class="sec-title" style="margin-top:4px">減税プラン</div>
       <div class="data-grid" style="margin-bottom:20px">
         <!-- Plan 1 -->
         <div class="data-card" style="border-top:2px solid #6d28d9">
-          <div class="dc-head" style="color:#6d28d9">PLAN 1　減税プラン１</div>
+          <div class="dc-head" style="color:#6d28d9">プラン１</div>
           <div class="dr" id="gp_p1_row">
             <span class="dr-label">必要額 <span style="color:var(--danger);font-size:10px">*</span></span>
             <span style="display:flex;align-items:center;gap:4px">
@@ -762,7 +765,7 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
         </div>
         <!-- Plan 2 -->
         <div class="data-card" style="border-top:2px solid #be185d">
-          <div class="dc-head" style="color:#be185d">PLAN 2　減税プラン２</div>
+          <div class="dc-head" style="color:#be185d">プラン２</div>
           <div class="dr">
             <span class="dr-label">必要額 <span style="color:var(--danger);font-size:10px">*</span></span>
             <span style="display:flex;align-items:center;gap:4px">
@@ -777,9 +780,9 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
       </div>
 
       <!-- サマリー＋バー -->
-      <div class="sec-title">計画サマリー PLAN SUMMARY</div>
+      <div class="sec-title">▶ 計画サマリー</div>
       <div class="data-card full" style="margin-bottom:14px">
-        <div class="dc-head">▸ SUMMARY</div>
+        <div class="dc-head">▸ サマリー</div>
         <div class="dr"><span class="dr-label">自治体・年度</span><span class="dr-val neu" id="pt_sum_id">―</span></div>
         <div class="dr"><span class="dr-label">歳出総額</span><span class="dr-val neu" id="pt_sum_exp">―</span></div>
         <div class="dr"><span class="dr-label" id="ptSumTaxLabel">市町村税合計</span><span class="dr-val neu" id="pt_sum_tax">―</span></div>
@@ -793,13 +796,13 @@ footer{text-align:center;padding:32px 0 14px;font-size:11px;color:var(--text-dim
         <div style="font-family:'Noto Sans JP',sans-serif;font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:14px">▸ REDUCTION SCALE — 歳出総額 ＝ 100%</div>
         <div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">
-            <span style="color:#6d28d9">PLAN 1</span><span style="font-family:'Noto Sans JP',sans-serif;color:#6d28d9" id="pt_vis_p1pct">―</span>
+            <span style="color:#6d28d9">プラン１</span><span style="font-family:'Noto Sans JP',sans-serif;color:#6d28d9" id="pt_vis_p1pct">―</span>
           </div>
           <div style="height:14px;background:var(--border);border-radius:2px;overflow:hidden"><div id="pt_vis_p1bar" style="height:100%;width:0%;border-radius:2px;background:linear-gradient(90deg,#5b21b6,#7c3aed);transition:width .7s cubic-bezier(.4,0,.2,1)"></div></div>
         </div>
         <div style="margin-bottom:6px">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">
-            <span style="color:#be185d">PLAN 2</span><span style="font-family:'Noto Sans JP',sans-serif;color:#be185d" id="pt_vis_p2pct">―</span>
+            <span style="color:#be185d">プラン２</span><span style="font-family:'Noto Sans JP',sans-serif;color:#be185d" id="pt_vis_p2pct">―</span>
           </div>
           <div style="height:14px;background:var(--border);border-radius:2px;overflow:hidden"><div id="pt_vis_p2bar" style="height:100%;width:0%;border-radius:2px;background:linear-gradient(90deg,#9d174d,#be185d);transition:width .7s cubic-bezier(.4,0,.2,1)"></div></div>
         </div>
@@ -2805,16 +2808,16 @@ function buildGenzeiPlan(taxDetail, exp, isPref, muniName) {
      nyut&&{label:'入湯税',  amount:nyut.amount},
      jims&&{label:'事業所税',amount:jims.amount}].filter(Boolean));
 
-  // ⑥ 住民税の引下げ（base は超過課税廃止後の標準税率分）
+  // ⑥ 住民税の引下げ（base は超過課税廃止後の標準税率分、超過課税分含むチェックで全額対象）
   const s6 = items.filter(r => _s6pat.test(r.label||'') && !/法定外/.test(r.label||''));
   gpSec(container,'gp_s6','⑥',tl+'民税（住民税）の引下げ',null,'pct-select',10,
-    s6.map(r => ({label:cl(r.label), amount:stdAmt(r)})));
+    s6.map(r => ({label:cl(r.label), amount:stdAmt(r), extra_tax:r.extra_tax||0, fullAmount:r.amount||0})));
 
   // ⑦ その他普通税の引下げ（③廃止対象を除外、base は超過課税廃止後の標準税率分）
   const s6set = new Set(s6);
   gpSec(container,'gp_s7','⑦','その他の普通税の引下げ',null,'pct-select',10,
     items.filter(r => /普通税/.test(r.tax1||'') && !/法定外/.test(r.label||'') && !s6set.has(r) && !sec3set.has(r))
-         .map(r => ({label:cl(r.label), amount:stdAmt(r)})));
+         .map(r => ({label:cl(r.label), amount:stdAmt(r), extra_tax:r.extra_tax||0, fullAmount:r.amount||0})));
 
   $('gp_wrap').style.display='';
   const p1r=$('gp_p1_row');  if(p1r) p1r.style.display='none';
@@ -2836,12 +2839,7 @@ function gpSec(container, id, num, title, subtitle, type, defPct, items) {
   if(subtitle&&items.length){const s=D('div','font-size:10px;color:var(--text-dim);margin-top:2px');s.textContent=subtitle;tWrap.appendChild(s);}
   head.appendChild(tWrap);
 
-  if(type==='pct-select'&&items.length){
-    const sel=D('select','font-size:11px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:2px;cursor:pointer');
-    sel.id=id+'_pct'; sel.onchange=gpCalc;
-    [5,10,20,30,50].forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p+'%引下げ';if(p===(defPct||10))o.selected=true;sel.appendChild(o);});
-    head.appendChild(sel);
-  }
+  // pct-select: per-item dropdowns — no group-level dropdown
 
   const totEl=D('span','font-size:11px;font-family:"Noto Sans JP",sans-serif;color:var(--accent2);font-weight:700;white-space:nowrap');
   totEl.id=id+'_total'; totEl.textContent=items.length?'―':'（該当なし）';
@@ -2852,16 +2850,33 @@ function gpSec(container, id, num, title, subtitle, type, defPct, items) {
     items.forEach((item,i)=>{
       const row=D('div','display:flex;align-items:center;gap:8px;padding:7px 14px;'+(i<items.length-1?'border-bottom:1px solid var(--border2)':''));
       const cb=D('input','cursor:pointer'); cb.type='checkbox'; cb.checked=true;
-      cb.id=id+'_cb_'+i; cb.className=id+'-cb'; cb.dataset.amount=item.amount||0; cb.onchange=gpCalc;
+      cb.id=id+'_cb_'+i; cb.className=id+'-cb';
+      cb.dataset.amount=item.amount||0;
+      cb.dataset.fullAmount=item.fullAmount!=null?item.fullAmount:(item.amount||0);
+      cb.onchange=gpCalc;
       const lbl=D('label','flex:1;font-size:12px;color:var(--text);cursor:pointer');
       lbl.htmlFor=cb.id; lbl.textContent=item.label;
       if(item.note){const n=D('span','font-size:10px;color:var(--text-dim);margin-left:6px');n.textContent='（'+item.note+'）';lbl.appendChild(n);}
       row.appendChild(cb); row.appendChild(lbl);
-      if(type==='check-select'){
+      if(type==='check-select'||type==='pct-select'){
+        // 超過課税分含む checkbox (pct-select のみ、extra_tax > 0 の場合)
+        if(type==='pct-select' && (item.extra_tax||0)>0){
+          const excWrap=D('span','display:flex;align-items:center;gap:3px;flex-shrink:0');
+          const excCb=D('input','cursor:pointer;margin:0');excCb.type='checkbox';excCb.checked=false;
+          excCb.id=id+'_exc_'+i; excCb.className=id+'-exc'; excCb.onchange=gpCalc;
+          const excLbl=D('label','font-size:10px;color:var(--text-dim);cursor:pointer;white-space:nowrap');
+          excLbl.htmlFor=excCb.id; excLbl.textContent='超過課税含む';
+          excWrap.appendChild(excCb); excWrap.appendChild(excLbl);
+          row.appendChild(excWrap);
+        }
         const sel=D('select','font-size:11px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:2px;cursor:pointer');
         sel.id=id+'_sel_'+i; sel.className=id+'-sel'; sel.onchange=gpCalc;
-        if(item.forceAbol){sel.disabled=true;const o=document.createElement('option');o.value='100';o.textContent='廃止';sel.appendChild(o);}
-        else{[['100','廃止'],['50','50%引下げ'],['30','30%引下げ'],['20','20%引下げ'],['10','10%引下げ']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;if(v===String(defPct||50))o.selected=true;sel.appendChild(o);});}
+        if(type==='check-select'){
+          if(item.forceAbol){sel.disabled=true;const o=document.createElement('option');o.value='100';o.textContent='廃止';sel.appendChild(o);}
+          else{[['100','廃止'],['50','50%引下げ'],['30','30%引下げ'],['20','20%引下げ'],['10','10%引下げ']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;if(v===String(defPct||50))o.selected=true;sel.appendChild(o);});}
+        } else {
+          [['100','廃止'],['50','50%引下げ'],['30','30%引下げ'],['20','20%引下げ'],['10','10%引下げ'],['5','5%引下げ']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;if(v===String(defPct||10))o.selected=true;sel.appendChild(o);});
+        }
         row.appendChild(sel);
       }
       const amtEl=D('span','font-size:11px;font-family:"Noto Sans JP",sans-serif;color:var(--text-dim);white-space:nowrap;min-width:80px;text-align:right');
@@ -2882,14 +2897,11 @@ function gpCalc(){
     const cbs=document.querySelectorAll('.'+id+'-cb');
     cbs.forEach((cb,i)=>{
       if(!cb.checked) return;
-      const base=Number(cb.dataset.amount)||0;
+      const excCb=$(id+'_exc_'+i);
+      const base = (excCb&&excCb.checked) ? (Number(cb.dataset.fullAmount)||0) : (Number(cb.dataset.amount)||0);
       let red=base;
-      if(type==='check-select'){
+      if(type==='check-select'||type==='pct-select'){
         const sel=$(id+'_sel_'+i); red=sel?Math.round(base*Number(sel.value)/100):base;
-        const d=$(id+'_disp_'+i); if(d) d.textContent=fmt(red)+' 千円';
-      } else if(type==='pct-select'){
-        const pSel=$(id+'_pct'); const pct=pSel?Number(pSel.value):10;
-        red=Math.round(base*pct/100);
         const d=$(id+'_disp_'+i); if(d) d.textContent=fmt(red)+' 千円';
       }
       sec+=red;
