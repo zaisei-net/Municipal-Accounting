@@ -2839,7 +2839,24 @@ function gpSec(container, id, num, title, subtitle, type, defPct, items) {
   if(subtitle&&items.length){const s=D('div','font-size:10px;color:var(--text-dim);margin-top:2px');s.textContent=subtitle;tWrap.appendChild(s);}
   head.appendChild(tWrap);
 
-  // pct-select: per-item dropdowns — no group-level dropdown
+  if(type==='pct-select'&&items.length){
+    const grpWrap=D('span','display:flex;align-items:center;gap:4px;flex-shrink:0');
+    const grpLbl=D('span','font-size:10px;color:var(--text-dim);white-space:nowrap');
+    grpLbl.textContent='一括';
+    const grpSel=D('select','font-size:11px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:2px;cursor:pointer');
+    grpSel.id=id+'_pct';
+    [[5,'5%'],[10,'10%'],[15,'15%'],[20,'20%'],[25,'25%'],[30,'30%'],[35,'35%'],[40,'40%'],[45,'45%'],[50,'50%'],[100,'廃止']].forEach(([v,t])=>{
+      const o=document.createElement('option');o.value=v;o.textContent=t;
+      if(v===(defPct||10))o.selected=true;
+      grpSel.appendChild(o);
+    });
+    grpSel.onchange=()=>{
+      document.querySelectorAll('.'+id+'-sel').forEach(s=>{s.value=grpSel.value;});
+      gpCalc();
+    };
+    grpWrap.appendChild(grpLbl); grpWrap.appendChild(grpSel);
+    head.appendChild(grpWrap);
+  }
 
   const totEl=D('span','font-size:11px;font-family:"Noto Sans JP",sans-serif;color:var(--accent2);font-weight:700;white-space:nowrap');
   totEl.id=id+'_total'; totEl.textContent=items.length?'―':'（該当なし）';
@@ -2875,7 +2892,7 @@ function gpSec(container, id, num, title, subtitle, type, defPct, items) {
           if(item.forceAbol){sel.disabled=true;const o=document.createElement('option');o.value='100';o.textContent='廃止';sel.appendChild(o);}
           else{[['100','廃止'],['50','50%引下げ'],['30','30%引下げ'],['20','20%引下げ'],['10','10%引下げ']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;if(v===String(defPct||50))o.selected=true;sel.appendChild(o);});}
         } else {
-          [['100','廃止'],['50','50%引下げ'],['30','30%引下げ'],['20','20%引下げ'],['10','10%引下げ'],['5','5%引下げ']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;if(v===String(defPct||10))o.selected=true;sel.appendChild(o);});
+          [[5,'5%'],[10,'10%'],[15,'15%'],[20,'20%'],[25,'25%'],[30,'30%'],[35,'35%'],[40,'40%'],[45,'45%'],[50,'50%'],[100,'廃止']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;if(v===(defPct||10))o.selected=true;sel.appendChild(o);});
         }
         row.appendChild(sel);
       }
